@@ -281,7 +281,8 @@ function buildSummaryTab(allResults) {
 
   // ── Freeze ──
   sheet.setFrozenRows(calStartRow - 1); // Freeze everything above the data
-  sheet.setFrozenColumns(1);
+  // Note: cannot freeze column 1 because the milestone table above uses
+  // merged cells that span across column 1 into other columns.
 
   SpreadsheetApp.flush();
 }
