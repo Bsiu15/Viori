@@ -79,17 +79,50 @@ function readSkuSettings(skuId) {
     }
   }
 
+  // ── Read granular inventory fields (mirrors Seller Central) ──
+  var inboundWorking    = readNum(ss, p + '__INBOUND_WORKING');
+  var inboundShipped    = readNum(ss, p + '__INBOUND_SHIPPED');
+  var inboundReceiving  = readNum(ss, p + '__INBOUND_RECEIVING');
+  var onhandAvailable   = readNum(ss, p + '__ONHAND_AVAILABLE');
+  var onhandFcTransfer  = readNum(ss, p + '__ONHAND_FC_TRANSFER');
+  var reservedCustOrder = readNum(ss, p + '__RESERVED_CUSTOMER_ORDER');
+  var reservedFcProc    = readNum(ss, p + '__RESERVED_FC_PROCESSING');
+  var researching       = readNum(ss, p + '__RESEARCHING');
+  var unfulfillWhDmg    = readNum(ss, p + '__UNFULFILLABLE_WAREHOUSE_DAMAGED');
+  var unfulfillDefect   = readNum(ss, p + '__UNFULFILLABLE_DEFECTIVE');
+  var unfulfillExpired  = readNum(ss, p + '__UNFULFILLABLE_EXPIRED');
+  var unfulfillCustDmg  = readNum(ss, p + '__UNFULFILLABLE_CUSTOMER_DAMAGED');
+  var unfulfillCarrDmg  = readNum(ss, p + '__UNFULFILLABLE_CARRIER_DAMAGED');
+  var unfulfillDistDmg  = readNum(ss, p + '__UNFULFILLABLE_DISTRIBUTOR_DAMAGED');
+
   return {
     skuId:             skuId,
 
-    // ── Core inventory buckets ──
-    fbaAvailable:      readNum(ss,  p + '__FBA_AVAILABLE'),
-    fbaProcessing:     readNum(ss,  p + '__FBA_PROCESSING'),
+    // ── Engine inventory buckets (derived from granular fields) ──
+    // On-hand Available → primary FBA selling bucket
+    fbaAvailable:      onhandAvailable,
+    // Inbound Receiving → units at Amazon being checked in (becomes available after delay)
+    fbaProcessing:     inboundReceiving,
     fbaCheckinDelay:   readNum(ss,  p + '__FBA_CHECKIN_DELAY'),
     fbmOnHand:         readNum(ss,  p + '__FBM_ONHAND'),
-    reserved:          readNum(ss,  p + '__RESERVED'),
-    researching:       readNum(ss,  p + '__RESEARCHING'),
-    unfulfillable:     readNum(ss,  p + '__UNFULFILLABLE'),
+    // Customer orders → subtracted from FBA available on day 1 (already spoken for)
+    customerOrders:    reservedCustOrder,
+
+    // ── Granular inventory (informational — stored for display) ──
+    inboundWorking:    inboundWorking,
+    inboundShipped:    inboundShipped,
+    inboundReceiving:  inboundReceiving,
+    onhandAvailable:   onhandAvailable,
+    onhandFcTransfer:  onhandFcTransfer,
+    reservedCustOrder: reservedCustOrder,
+    reservedFcProc:    reservedFcProc,
+    researching:       researching,
+    unfulfillWhDmg:    unfulfillWhDmg,
+    unfulfillDefect:   unfulfillDefect,
+    unfulfillExpired:  unfulfillExpired,
+    unfulfillCustDmg:  unfulfillCustDmg,
+    unfulfillCarrDmg:  unfulfillCarrDmg,
+    unfulfillDistDmg:  unfulfillDistDmg,
 
     // ── Sales velocity ──
     dailyVelocity:     readNum(ss,  p + '__DAILY_VELOCITY'),

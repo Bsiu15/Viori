@@ -5,7 +5,7 @@
  * Each SKU gets its own clearly labeled block of input rows.
  * All values are stored in column B; labels are in column A.
  * Named ranges are created for every input so other modules can read them
- * by name (e.g., "SB_HW_100W_FBA__FBA_AVAILABLE").
+ * by name (e.g., "SB_HW_100W_FBA__ONHAND_AVAILABLE").
  * ---------------------------------------------------------------------------
  */
 
@@ -17,14 +17,28 @@
  * "format" is optional: "date" applies date formatting, "percent" applies %.
  */
 var SKU_INPUT_ROWS = [
-  // ── Starting Inventory ──
-  { key: 'FBA_AVAILABLE',         label: 'FBA',                                          defaultVal: 0,    format: 'number'  },
-  { key: 'FBA_PROCESSING',        label: 'Inbound',                                      defaultVal: 0,    format: 'number'  },
+  // ── Starting Inventory: Inbound ──
+  { key: 'INBOUND_WORKING',             label: 'Inbound: Working',                              defaultVal: 0,    format: 'number'  },
+  { key: 'INBOUND_SHIPPED',             label: 'Inbound: Shipped',                              defaultVal: 0,    format: 'number'  },
+  { key: 'INBOUND_RECEIVING',           label: 'Inbound: Receiving',                            defaultVal: 0,    format: 'number'  },
+  // ── Starting Inventory: On-hand ──
+  { key: 'ONHAND_AVAILABLE',            label: 'On-hand: Available',                             defaultVal: 0,    format: 'number'  },
+  { key: 'ONHAND_FC_TRANSFER',          label: 'On-hand: FC transfer',                          defaultVal: 0,    format: 'number'  },
+  // ── Starting Inventory: Reserved ──
+  { key: 'RESERVED_CUSTOMER_ORDER',     label: 'Reserved: Customer order',                      defaultVal: 0,    format: 'number'  },
+  { key: 'RESERVED_FC_PROCESSING',      label: 'Reserved: FC processing',                       defaultVal: 0,    format: 'number'  },
+  // ── Starting Inventory: Researching ──
+  { key: 'RESEARCHING',                 label: 'Researching',                                    defaultVal: 0,    format: 'number'  },
+  // ── Starting Inventory: Unfulfillable ──
+  { key: 'UNFULFILLABLE_WAREHOUSE_DAMAGED', label: 'Unfulfillable: Warehouse damaged',           defaultVal: 0,    format: 'number'  },
+  { key: 'UNFULFILLABLE_DEFECTIVE',         label: 'Unfulfillable: Defective',                   defaultVal: 0,    format: 'number'  },
+  { key: 'UNFULFILLABLE_EXPIRED',           label: 'Unfulfillable: Expired',                     defaultVal: 0,    format: 'number'  },
+  { key: 'UNFULFILLABLE_CUSTOMER_DAMAGED',  label: 'Unfulfillable: Customer damaged',            defaultVal: 0,    format: 'number'  },
+  { key: 'UNFULFILLABLE_CARRIER_DAMAGED',   label: 'Unfulfillable: Carrier damaged',             defaultVal: 0,    format: 'number'  },
+  { key: 'UNFULFILLABLE_DISTRIBUTOR_DAMAGED', label: 'Unfulfillable: Distributor damaged',       defaultVal: 0,    format: 'number'  },
+  // ── Forecast config ──
   { key: 'FBA_CHECKIN_DELAY',     label: 'FBA check-in and processing delay (days)',      defaultVal: 7,    format: 'number'  },
-  { key: 'FBM_ONHAND',            label: 'On-hand',                                      defaultVal: 0,    format: 'number'  },
-  { key: 'RESERVED',              label: 'Reserved',                                     defaultVal: 0,    format: 'number'  },
-  { key: 'RESEARCHING',           label: 'Researching',                                  defaultVal: 0,    format: 'number'  },
-  { key: 'UNFULFILLABLE',         label: 'Unfulfillable',                                defaultVal: 0,    format: 'number'  },
+  { key: 'FBM_ONHAND',            label: 'FBM on-hand',                                   defaultVal: 0,    format: 'number'  },
   // ── Sales Velocity ──
   { key: 'DAILY_VELOCITY',        label: 'Daily sales velocity (units/day)',              defaultVal: 0,    format: 'number'  },
   { key: 'VEL_OVERRIDE_1_START',  label: 'Velocity override 1: start date',              defaultVal: '',   format: 'date'    },

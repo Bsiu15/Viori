@@ -142,6 +142,97 @@
       color: #1a73e8;
       margin-bottom: 2px;
     }
+    /* ── Expandable inventory categories ── */
+    .inv-category {
+      border-bottom: 1px solid #f1f3f4;
+      padding: 2px 0;
+    }
+    .inv-category:last-child { border-bottom: none; }
+    .inv-category-header {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      padding: 6px 0;
+      user-select: none;
+    }
+    .inv-chevron {
+      display: inline-block;
+      font-size: 10px;
+      color: #80868b;
+      margin-right: 6px;
+      transition: transform 0.15s;
+      width: 12px;
+      text-align: center;
+    }
+    .inv-chevron.open { transform: rotate(90deg); }
+    .inv-cat-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #202124;
+    }
+    .inv-detail {
+      display: none;
+      padding-left: 18px;
+      padding-bottom: 4px;
+    }
+    .inv-detail.open { display: block; }
+    .inv-detail .field { padding: 4px 0; }
+    .inv-detail .field label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    /* ── Info tooltip icon ── */
+    .info-tip {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #e8eaed;
+      color: #5f6368;
+      font-size: 9px;
+      font-weight: 700;
+      cursor: help;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .info-tip .tip-text {
+      visibility: hidden;
+      opacity: 0;
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #202124;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 400;
+      padding: 6px 10px;
+      border-radius: 6px;
+      width: 200px;
+      text-align: left;
+      z-index: 100;
+      transition: opacity 0.15s;
+      line-height: 1.4;
+      pointer-events: none;
+    }
+    .info-tip .tip-text::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-top-color: #202124;
+    }
+    .info-tip:hover .tip-text,
+    .info-tip:focus .tip-text {
+      visibility: visible;
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
@@ -152,38 +243,163 @@
 
   <div id="formContainer">
 
-    <!-- Inventory -->
+    <!-- Starting Inventory — mirrors Amazon Seller Central FBA Inventory -->
     <div class="section">
       <div class="section-header">Starting Inventory</div>
       <div class="section-body">
-        <div class="field">
-          <label>FBA</label>
-          <input type="number" id="FBA_AVAILABLE" value="0" min="0">
+
+        <!-- Inbound -->
+        <div class="inv-category">
+          <div class="inv-category-header" onclick="toggleCat(this)">
+            <span class="inv-chevron">&#9654;</span>
+            <span class="inv-cat-label">Inbound</span>
+          </div>
+          <div class="inv-detail">
+            <div class="field">
+              <label>
+                Working
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units you're preparing to ship to Amazon but haven't sent yet.</span></span>
+              </label>
+              <input type="number" id="INBOUND_WORKING" value="0" min="0">
+            </div>
+            <div class="field">
+              <label>
+                Shipped
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units currently on a truck or carrier heading to Amazon's warehouse.</span></span>
+              </label>
+              <input type="number" id="INBOUND_SHIPPED" value="0" min="0">
+            </div>
+            <div class="field">
+              <label>
+                Receiving
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units at Amazon's dock being checked in and shelved. These become available after the check-in delay.</span></span>
+              </label>
+              <input type="number" id="INBOUND_RECEIVING" value="0" min="0">
+            </div>
+          </div>
         </div>
-        <div class="field">
-          <label>Inbound</label>
-          <input type="number" id="FBA_PROCESSING" value="0" min="0">
+
+        <!-- On-hand -->
+        <div class="inv-category">
+          <div class="inv-category-header" onclick="toggleCat(this)">
+            <span class="inv-chevron">&#9654;</span>
+            <span class="inv-cat-label">On-hand</span>
+          </div>
+          <div class="inv-detail">
+            <div class="field">
+              <label>
+                Available
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units ready to sell right now. When a customer orders, Amazon picks and ships from these.</span></span>
+              </label>
+              <input type="number" id="ONHAND_AVAILABLE" value="0" min="0">
+            </div>
+            <div class="field">
+              <label>
+                FC transfer
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units being moved between Amazon warehouses to be closer to customers. Temporarily unavailable.</span></span>
+              </label>
+              <input type="number" id="ONHAND_FC_TRANSFER" value="0" min="0">
+            </div>
+          </div>
         </div>
-        <div class="field">
+
+        <!-- Reserved -->
+        <div class="inv-category">
+          <div class="inv-category-header" onclick="toggleCat(this)">
+            <span class="inv-chevron">&#9654;</span>
+            <span class="inv-cat-label">Reserved</span>
+          </div>
+          <div class="inv-detail">
+            <div class="field">
+              <label>
+                Customer order
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units set aside for orders customers already placed but Amazon hasn't shipped yet. These are spoken for.</span></span>
+              </label>
+              <input type="number" id="RESERVED_CUSTOMER_ORDER" value="0" min="0">
+            </div>
+            <div class="field">
+              <label>
+                FC processing
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units being relabeled, prepped, or processed inside Amazon's warehouse. Temporarily unavailable.</span></span>
+              </label>
+              <input type="number" id="RESERVED_FC_PROCESSING" value="0" min="0">
+            </div>
+          </div>
+        </div>
+
+        <!-- Researching -->
+        <div class="inv-category">
+          <div class="field" style="padding: 6px 0;">
+            <label>
+              Researching
+              <span class="info-tip" tabindex="0">i<span class="tip-text">Units Amazon is investigating. They may be misplaced, miscounted, or under review.</span></span>
+            </label>
+            <input type="number" id="RESEARCHING" value="0" min="0">
+          </div>
+        </div>
+
+        <!-- Unfulfillable -->
+        <div class="inv-category">
+          <div class="inv-category-header" onclick="toggleCat(this)">
+            <span class="inv-chevron">&#9654;</span>
+            <span class="inv-cat-label">Unfulfillable</span>
+          </div>
+          <div class="inv-detail">
+            <div class="field">
+              <label>
+                Warehouse damaged
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units damaged while stored in Amazon's warehouse. Amazon may reimburse you for these.</span></span>
+              </label>
+              <input type="number" id="UNFULFILLABLE_WAREHOUSE_DAMAGED" value="0" min="0">
+            </div>
+            <div class="field">
+              <label>
+                Defective
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units flagged as defective and pulled from inventory. Can't be sold as-is.</span></span>
+              </label>
+              <input type="number" id="UNFULFILLABLE_DEFECTIVE" value="0" min="0">
+            </div>
+            <div class="field">
+              <label>
+                Expired
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units past their expiration or best-by date. Amazon won't sell these.</span></span>
+              </label>
+              <input type="number" id="UNFULFILLABLE_EXPIRED" value="0" min="0">
+            </div>
+            <div class="field">
+              <label>
+                Customer damaged
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units returned by a customer in damaged condition. Can't be resold.</span></span>
+              </label>
+              <input type="number" id="UNFULFILLABLE_CUSTOMER_DAMAGED" value="0" min="0">
+            </div>
+            <div class="field">
+              <label>
+                Carrier damaged
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units damaged by the shipping carrier during delivery to the customer.</span></span>
+              </label>
+              <input type="number" id="UNFULFILLABLE_CARRIER_DAMAGED" value="0" min="0">
+            </div>
+            <div class="field">
+              <label>
+                Distributor damaged
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units that arrived at Amazon already damaged from your supplier or distributor.</span></span>
+              </label>
+              <input type="number" id="UNFULFILLABLE_DISTRIBUTOR_DAMAGED" value="0" min="0">
+            </div>
+          </div>
+        </div>
+
+        <!-- Forecast config fields -->
+        <div class="field" style="margin-top: 6px; border-top: 1px solid #e8eaed; padding-top: 8px;">
           <label>FBA check-in delay (days)</label>
           <input type="number" id="FBA_CHECKIN_DELAY" value="7" min="0">
         </div>
         <div class="field">
-          <label>On-hand</label>
+          <label>FBM on-hand</label>
           <input type="number" id="FBM_ONHAND" value="0" min="0">
         </div>
-        <div class="field">
-          <label>Reserved</label>
-          <input type="number" id="RESERVED" value="0" min="0">
-        </div>
-        <div class="field">
-          <label>Researching</label>
-          <input type="number" id="RESEARCHING" value="0" min="0">
-        </div>
-        <div class="field">
-          <label>Unfulfillable</label>
-          <input type="number" id="UNFULFILLABLE" value="0" min="0">
-        </div>
+
       </div>
     </div>
 
@@ -385,10 +601,29 @@
   <div id="status" class="status"></div>
 
   <script>
+    // Toggle expandable inventory category
+    function toggleCat(header) {
+      var detail = header.nextElementSibling;
+      var chevron = header.querySelector('.inv-chevron');
+      var isOpen = detail.classList.contains('open');
+      if (isOpen) {
+        detail.classList.remove('open');
+        chevron.classList.remove('open');
+      } else {
+        detail.classList.add('open');
+        chevron.classList.add('open');
+      }
+    }
+
     // All field IDs that map to named range keys
     var FIELD_IDS = [
-      'FBA_AVAILABLE', 'FBA_PROCESSING', 'FBA_CHECKIN_DELAY', 'FBM_ONHAND',
-      'RESERVED', 'RESEARCHING', 'UNFULFILLABLE',
+      'INBOUND_WORKING', 'INBOUND_SHIPPED', 'INBOUND_RECEIVING',
+      'ONHAND_AVAILABLE', 'ONHAND_FC_TRANSFER',
+      'RESERVED_CUSTOMER_ORDER', 'RESERVED_FC_PROCESSING',
+      'RESEARCHING',
+      'UNFULFILLABLE_WAREHOUSE_DAMAGED', 'UNFULFILLABLE_DEFECTIVE', 'UNFULFILLABLE_EXPIRED',
+      'UNFULFILLABLE_CUSTOMER_DAMAGED', 'UNFULFILLABLE_CARRIER_DAMAGED', 'UNFULFILLABLE_DISTRIBUTOR_DAMAGED',
+      'FBA_CHECKIN_DELAY', 'FBM_ONHAND',
       'DAILY_VELOCITY',
       'VEL_OVERRIDE_1_START', 'VEL_OVERRIDE_1_END', 'VEL_OVERRIDE_1_VALUE',
       'VEL_OVERRIDE_2_START', 'VEL_OVERRIDE_2_END', 'VEL_OVERRIDE_2_VALUE',

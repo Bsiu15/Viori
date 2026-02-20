@@ -49,8 +49,12 @@ function runWaterfall(cfg) {
   var results  = [];
 
   // ── Initialize running inventory balances ──
-  var fbaAvail     = cfg.fbaAvailable;
-  var fbaProc      = cfg.fbaProcessing;
+  // Subtract customer orders from FBA available — those units are already spoken for.
+  // If customer orders exceed available, the remainder eats into the first processing batch.
+  var custOrders   = cfg.customerOrders || 0;
+  var fbaAvail     = Math.max(0, cfg.fbaAvailable - custOrders);
+  var custOverflow = Math.max(0, custOrders - cfg.fbaAvailable); // orders that exceed available
+  var fbaProc      = Math.max(0, cfg.fbaProcessing - custOverflow);
   var fbmOnHand    = cfg.fbmOnHand;
   var dtcRemaining = cfg.dtcUnits;
 

@@ -70,48 +70,61 @@ var SUMMARY_TAB_NAME   = 'Summary';
  * Number of input rows per SKU block in the Settings tab.
  * Each SKU block has the following rows:
  *  1  SKU header (merged, colored)
- *  2  FBA (available units)
- *  3  Inbound (processing/receiving units)
- *  4  FBA check-in and processing delay (days)
- *  5  On-hand (FBM on-hand units)
- *  6  Reserved
- *  7  Researching
- *  8  Unfulfillable
- *  9  Daily sales velocity (units/day)
- * 10  Velocity override 1: start date
- * 11  Velocity override 1: end date
- * 12  Velocity override 1: units/day
- * 13  Velocity override 2: start date
- * 14  Velocity override 2: end date
- * 15  Velocity override 2: units/day
- * 16  Velocity override 3: start date
- * 17  Velocity override 3: end date
- * 18  Velocity override 3: units/day
- * 19  Conversion rate (%)
- * 20  Conversion rate override 1: start date
- * 21  Conversion rate override 1: end date
- * 22  Conversion rate override 1: value (%)
- * 23  Conversion rate override 2: start date
- * 24  Conversion rate override 2: end date
- * 25  Conversion rate override 2: value (%)
- * 26  Conversion rate override 3: start date
- * 27  Conversion rate override 3: end date
- * 28  Conversion rate override 3: value (%)
- * 29  SPD shipment: units
- * 30  SPD shipment: send date
- * 31  SPD shipment: transit time (days)
- * 32  LTL shipment: units
- * 33  LTL shipment: send date
- * 34  LTL shipment: transit time (days)
- * 35  DTC bridge: units
- * 36  DTC bridge: start date
- * 37  DTC bridge: end date
- * 38  Ad-hoc shipment: units
- * 39  Ad-hoc shipment: send date
- * 40  Ad-hoc shipment: transit time (days)
- * 41  (blank spacer row)
+ *  ── Starting Inventory (mirrors Seller Central) ──
+ *  2  Inbound: Working
+ *  3  Inbound: Shipped
+ *  4  Inbound: Receiving
+ *  5  On-hand: Available
+ *  6  On-hand: FC transfer
+ *  7  Reserved: Customer order
+ *  8  Reserved: FC processing
+ *  9  Researching
+ * 10  Unfulfillable: Warehouse damaged
+ * 11  Unfulfillable: Defective
+ * 12  Unfulfillable: Expired
+ * 13  Unfulfillable: Customer damaged
+ * 14  Unfulfillable: Carrier damaged
+ * 15  Unfulfillable: Distributor damaged
+ * 16  FBA check-in and processing delay (days)
+ * 17  FBM on-hand
+ *  ── Sales Velocity ──
+ * 18  Daily sales velocity (units/day)
+ * 19  Velocity override 1: start date
+ * 20  Velocity override 1: end date
+ * 21  Velocity override 1: units/day
+ * 22  Velocity override 2: start date
+ * 23  Velocity override 2: end date
+ * 24  Velocity override 2: units/day
+ * 25  Velocity override 3: start date
+ * 26  Velocity override 3: end date
+ * 27  Velocity override 3: units/day
+ *  ── Conversion Rate ──
+ * 28  Conversion rate (%)
+ * 29  CR override 1: start date
+ * 30  CR override 1: end date
+ * 31  CR override 1: value (%)
+ * 32  CR override 2: start date
+ * 33  CR override 2: end date
+ * 34  CR override 2: value (%)
+ * 35  CR override 3: start date
+ * 36  CR override 3: end date
+ * 37  CR override 3: value (%)
+ *  ── Shipments ──
+ * 38  SPD shipment: units
+ * 39  SPD shipment: send date
+ * 40  SPD shipment: transit time (days)
+ * 41  LTL shipment: units
+ * 42  LTL shipment: send date
+ * 43  LTL shipment: transit time (days)
+ * 44  DTC bridge: units
+ * 45  DTC bridge: start date
+ * 46  DTC bridge: end date
+ * 47  Ad-hoc shipment: units
+ * 48  Ad-hoc shipment: send date
+ * 49  Ad-hoc shipment: transit time (days)
+ * 50  (blank spacer row)
  */
-var ROWS_PER_SKU_BLOCK = 41;
+var ROWS_PER_SKU_BLOCK = 50;
 
 /** Column A = labels, Column B = values in the Settings tab */
 var SETTINGS_LABEL_COL = 1;
