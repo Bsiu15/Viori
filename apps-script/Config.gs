@@ -9,8 +9,12 @@
  */
 
 // ── Date range ──────────────────────────────────────────────────────────────
-/** First day of the forecast window */
-var START_DATE = new Date(2026, 1, 19); // Feb 19, 2026 (months are 0-indexed)
+/** First day of the forecast window — always "today" so we only forecast forward */
+var START_DATE = (function() {
+  var d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+})();
 /** Last day of the forecast window */
 var END_DATE   = new Date(2026, 3, 30); // Apr 30, 2026
 
@@ -191,7 +195,7 @@ var SETTINGS_VALUE_COL = 2;
  * @return {number}
  */
 function forecastDayCount() {
-  return Math.round((END_DATE - START_DATE) / 86400000) + 1; // 71 days
+  return Math.round((END_DATE - START_DATE) / 86400000) + 1;
 }
 
 /**
