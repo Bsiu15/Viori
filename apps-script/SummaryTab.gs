@@ -59,6 +59,14 @@ function buildSummaryTab(allResults) {
   var numDays = dates.length;
   var numSkus = allResults.length;
 
+  // ── Set column widths upfront (calendar grid needs 48px day columns) ──
+  // Doing this early avoids 71 individual API calls later in the function
+  // which can contribute to script timeout on the calendar grid section.
+  sheet.setColumnWidth(1, 220);
+  for (var cw = 2; cw <= numDays + 1; cw++) {
+    sheet.setColumnWidth(cw, 48);
+  }
+
   // Compute the total column span of the milestone table
   var msTotalCols = 0;
   for (var mf = 0; mf < MILESTONE_FIELDS.length; mf++) {
@@ -439,6 +447,10 @@ function buildSummaryTab(allResults) {
     finEndRow = finRow;
   }
 
+  // Flush to ensure milestone + financial sections are committed
+  // before the calendar grid (protects against script timeout)
+  SpreadsheetApp.flush();
+
   // ══════════════════════════════════════════════════════════════════════════
   // SECTION 4: CALENDAR GRID
   // ══════════════════════════════════════════════════════════════════════════
@@ -468,14 +480,7 @@ function buildSummaryTab(allResults) {
                 .setHorizontalAlignment('center')
                 .setWrap(true);
 
-  // ── Column widths ──
-  // All columns use the same 48px width for the calendar grid.
-  // Column 1 (SKU) is wider. The milestone table above uses merged cells
-  // so it is not affected by these column widths.
-  sheet.setColumnWidth(1, 220);
-  for (var dw = 2; dw <= numDays + 1; dw++) {
-    sheet.setColumnWidth(dw, 48);
-  }
+  // Column widths already set at the top of the function
   calStartRow += 1;
 
   // ── Data rows: one per SKU ──
@@ -539,9 +544,8 @@ function buildSummaryTab(allResults) {
        .setFontSize(8);
 
   // ── Freeze ──
-  sheet.setFrozenRows(calStartRow - 1); // Freeze everything above the data
-  // Note: cannot freeze column 1 because the milestone table above uses
-  // merged cells that span across column 1 into other columns.
+  // Freeze just the title row so the rest of the sheet scrolls freely
+  sheet.setFrozenRows(1);
 
   SpreadsheetApp.flush();
 }

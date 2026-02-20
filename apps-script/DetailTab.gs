@@ -167,16 +167,14 @@ function buildDetailTab(skuDef, data, cfg) {
          .setBorder(true, true, true, true, false, false);
     row += 1;
 
-    // Day-of-week header
-    for (var dh = 0; dh < numCols; dh++) {
-      sheet.getRange(row, dh + 1)
-           .setValue(DAY_NAMES[dh])
-           .setFontWeight('bold')
-           .setFontSize(9)
-           .setBackground('#E2EFDA')
-           .setHorizontalAlignment('center')
-           .setBorder(true, true, true, true, false, false);
-    }
+    // Day-of-week header (batch)
+    var dowRange = sheet.getRange(row, 1, 1, numCols);
+    dowRange.setValues([DAY_NAMES])
+            .setFontWeight('bold')
+            .setFontSize(9)
+            .setBackground('#E2EFDA')
+            .setHorizontalAlignment('center')
+            .setBorder(true, true, true, true, false, false);
     row += 1;
 
     // Determine calendar grid for this month
@@ -185,20 +183,23 @@ function buildDetailTab(skuDef, data, cfg) {
     var startDow     = firstOfMonth.getDay(); // 0=Sun
 
     var day = 1;
-    var weekRow = row;
+    var weekStartRow = row;
+    var isFirstWeek = true;
 
-    // Fill weeks
+    // Collect all weeks for this month, then write in batch
+    var allWeekValues = [];
+    var allWeekBgs    = [];
+
     while (day <= daysInMonth) {
       var cellValues = [];
       var cellBgs    = [];
 
       for (var col = 0; col < numCols; col++) {
-        if ((weekRow === row && col < startDow) || day > daysInMonth) {
+        if ((isFirstWeek && col < startDow) || day > daysInMonth) {
           // Empty cell (before first day or after last day of month)
           cellValues.push('');
           cellBgs.push('#F5F5F5');
         } else {
-          var cellDate = new Date(mo.year, mo.month, day);
           var key = mo.year + '-' + mo.month + '-' + day;
           var snap = snapMap[key];
 
@@ -270,23 +271,27 @@ function buildDetailTab(skuDef, data, cfg) {
         }
       }
 
-      // Write this week's row
-      for (var wc = 0; wc < numCols; wc++) {
-        var cell = sheet.getRange(weekRow, wc + 1);
-        cell.setValue(cellValues[wc])
-            .setBackground(cellBgs[wc])
-            .setFontSize(8)
-            .setVerticalAlignment('top')
-            .setWrap(true)
-            .setBorder(true, true, true, true, false, false);
-      }
-
-      // Set row height to fit calendar cells
-      sheet.setRowHeight(weekRow, 95);
-      weekRow += 1;
+      allWeekValues.push(cellValues);
+      allWeekBgs.push(cellBgs);
+      isFirstWeek = false;
     }
 
-    row = weekRow + 1; // spacer between months
+    // Write entire month's calendar grid in one batch
+    var numWeeks = allWeekValues.length;
+    var monthRange = sheet.getRange(weekStartRow, 1, numWeeks, numCols);
+    monthRange.setValues(allWeekValues);
+    monthRange.setBackgrounds(allWeekBgs);
+    monthRange.setFontSize(8);
+    monthRange.setVerticalAlignment('top');
+    monthRange.setWrap(true);
+    monthRange.setBorder(true, true, true, true, false, false);
+
+    // Set row heights for calendar cells
+    for (var rh = 0; rh < numWeeks; rh++) {
+      sheet.setRowHeight(weekStartRow + rh, 95);
+    }
+
+    row = weekStartRow + numWeeks + 1; // spacer between months
   }
 
   // ══════════════════════════════════════════════════════════════════════════
