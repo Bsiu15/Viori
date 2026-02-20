@@ -110,9 +110,15 @@ function buildSettingsTab() {
       var svKey = SKU_INPUT_ROWS[sk].key;
       var svRange = ss.getRangeByName(svPrefix + '__' + svKey);
       if (svRange) {
-        var svVal = svRange.getValue();
-        if (svVal !== '' && svVal !== undefined && svVal !== null) {
-          savedValues[svPrefix][svKey] = svVal;
+        // Check if the cell has a formula (e.g. FBA auto-calc)
+        var svFormula = svRange.getFormula();
+        if (svFormula !== '') {
+          savedValues[svPrefix][svKey] = { __isFormula: true, formula: svFormula };
+        } else {
+          var svVal = svRange.getValue();
+          if (svVal !== '' && svVal !== undefined && svVal !== null) {
+            savedValues[svPrefix][svKey] = svVal;
+          }
         }
       }
     }
@@ -179,7 +185,12 @@ function buildSettingsTab() {
       // Restore saved value if it exists, otherwise use default
       var valueCell = sheet.getRange(row, SETTINGS_VALUE_COL);
       if (skuSaved.hasOwnProperty(input.key)) {
-        valueCell.setValue(skuSaved[input.key]);
+        var saved = skuSaved[input.key];
+        if (saved && typeof saved === 'object' && saved.__isFormula) {
+          valueCell.setFormula(saved.formula);
+        } else {
+          valueCell.setValue(saved);
+        }
       } else if (input.defaultVal !== '' && input.defaultVal !== null) {
         valueCell.setValue(input.defaultVal);
       }
@@ -212,11 +223,23 @@ function buildSettingsTab() {
     row += 2;
   }
 
+  // ── Auto-calculate FBA cells ──
+  // Set a formula on FBA_OVERRIDE if no manual value was saved.
+  // Formula: = ONHAND_AVAILABLE + ONHAND_FC_TRANSFER
+  // If the user types a number, it replaces the formula (manual override).
+  for (var fi = 0; fi < skus.length; fi++) {
+    var fbaPrefix = namedRangePrefix(skus[fi].id);
+    var fbaSaved = savedValues[fbaPrefix] || {};
+    var fbaRange = ss.getRangeByName(fbaPrefix + '__FBA_OVERRIDE');
+    if (fbaRange && !fbaSaved.hasOwnProperty('FBA_OVERRIDE')) {
+      fbaRange.setFormula(
+        '=' + fbaPrefix + '__ONHAND_AVAILABLE + ' + fbaPrefix + '__ONHAND_FC_TRANSFER'
+      );
+    }
+  }
+
   // Freeze the title rows and protect structure
   sheet.setFrozenRows(2);
-
-  // Add data validation hint: conversion rate 0-100
-  // (Applied via named ranges later if needed)
 
   SpreadsheetApp.flush();
 }
