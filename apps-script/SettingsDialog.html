@@ -690,6 +690,13 @@
             <span class="suffix">%</span>
           </div>
         </div>
+        <div class="field">
+          <label>
+            Past OOS days
+            <span class="info-tip" tabindex="0">i<span class="tip-text">Number of OOS days already experienced before today. Used to calculate "Already Lost" revenue in the financial impact tables.</span></span>
+          </label>
+          <input type="number" id="PAST_OOS_DAYS" value="0" min="0">
+        </div>
       </div>
     </div>
 
@@ -830,7 +837,7 @@
       'LTL_UNITS', 'LTL_SEND_DATE', 'LTL_TRANSIT_DAYS',
       'DTC_UNITS', 'DTC_START_DATE', 'DTC_END_DATE',
       'ADHOC_UNITS', 'ADHOC_SEND_DATE', 'ADHOC_TRANSIT_DAYS',
-      'SELLING_PRICE', 'DPP_MARGIN'
+      'SELLING_PRICE', 'DPP_MARGIN', 'PAST_OOS_DAYS'
     ];
 
     // Date field IDs

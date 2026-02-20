@@ -180,9 +180,10 @@ var SUMMARY_TAB_NAME   = 'Summary';
  *  ── Financials ──
  * 50  Selling price ($)
  * 51  DPP margin (%)
- * 52  (blank spacer row)
+ * 52  Past OOS days (already experienced)
+ * 53  (blank spacer row)
  */
-var ROWS_PER_SKU_BLOCK = 52;
+var ROWS_PER_SKU_BLOCK = 53;
 
 /** Column A = labels, Column B = values in the Settings tab */
 var SETTINGS_LABEL_COL = 1;

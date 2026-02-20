@@ -88,7 +88,7 @@ function getSkuSettingsForDialog(skuId) {
     'LTL_UNITS', 'LTL_SEND_DATE', 'LTL_TRANSIT_DAYS',
     'DTC_UNITS', 'DTC_START_DATE', 'DTC_END_DATE',
     'ADHOC_UNITS', 'ADHOC_SEND_DATE', 'ADHOC_TRANSIT_DAYS',
-    'SELLING_PRICE', 'DPP_MARGIN'
+    'SELLING_PRICE', 'DPP_MARGIN', 'PAST_OOS_DAYS'
   ];
 
   for (var i = 0; i < fields.length; i++) {

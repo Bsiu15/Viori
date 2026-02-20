@@ -361,8 +361,35 @@ function buildDetailTab(skuDef, data, cfg) {
       row += 1;
     }
 
-    // Totals row
-    sheet.getRange(row, 1).setValue('TOTAL')
+    // ── Already Lost row (from user-entered past OOS days) ──
+    var pastOosDays = (cfg && cfg.pastOosDays) ? cfg.pastOosDays : 0;
+    var pastEffVel  = (cfg && cfg.dailyVelocity && cfg.conversionRate)
+                      ? cfg.dailyVelocity * (cfg.conversionRate / 100) : 0;
+    var pastLostRev = pastOosDays * pastEffVel * sellingPrice;
+    var pastLostDpp = pastLostRev * (dppMargin / 100);
+
+    sheet.getRange(row, 1).setValue('ALREADY LOST')
+         .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('left')
+         .setBorder(true, true, true, true, false, false)
+         .setBackground('#FFF2CC');
+    sheet.getRange(row, 2).setValue(pastOosDays)
+         .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center')
+         .setBorder(true, true, true, true, false, false)
+         .setBackground('#FFF2CC');
+    sheet.getRange(row, 3).setValue(pastLostRev)
+         .setNumberFormat('$#,##0.00')
+         .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
+         .setBorder(true, true, true, true, false, false)
+         .setBackground('#FFF2CC');
+    sheet.getRange(row, 4).setValue(pastLostDpp)
+         .setNumberFormat('$#,##0.00')
+         .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
+         .setBorder(true, true, true, true, false, false)
+         .setBackground('#FFF2CC');
+    row += 1;
+
+    // ── Projected row (from simulation) ──
+    sheet.getRange(row, 1).setValue('PROJECTED')
          .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('left')
          .setBorder(true, true, true, true, false, false)
          .setBackground('#F2F2F2');
@@ -370,23 +397,54 @@ function buildDetailTab(skuDef, data, cfg) {
          .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center')
          .setBorder(true, true, true, true, false, false)
          .setBackground('#F2F2F2');
-
-    var totalRevCell = sheet.getRange(row, 3);
-    totalRevCell.setValue(totalLostRev)
+    var projRevCell = sheet.getRange(row, 3);
+    projRevCell.setValue(totalLostRev)
          .setNumberFormat('$#,##0.00')
          .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
          .setBorder(true, true, true, true, false, false);
-
-    var totalDppCell = sheet.getRange(row, 4);
-    totalDppCell.setValue(totalLostDpp)
+    var projDppCell = sheet.getRange(row, 4);
+    projDppCell.setValue(totalLostDpp)
          .setNumberFormat('$#,##0.00')
          .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
          .setBorder(true, true, true, true, false, false);
-
-    // Subtle red on total loss numbers
     if (totalLostRev > 0) {
+      projRevCell.setBackground(COLORS.OOS);
+      projDppCell.setBackground(COLORS.OOS);
+    } else {
+      projRevCell.setBackground('#F2F2F2');
+      projDppCell.setBackground('#F2F2F2');
+    }
+    row += 1;
+
+    // ── Total Impact row ──
+    var grandDays = pastOosDays + totalOosDays;
+    var grandRev  = pastLostRev + totalLostRev;
+    var grandDpp  = pastLostDpp + totalLostDpp;
+
+    sheet.getRange(row, 1).setValue('TOTAL IMPACT')
+         .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('left')
+         .setBorder(true, true, true, true, false, false)
+         .setBackground('#D6E4F0');
+    sheet.getRange(row, 2).setValue(grandDays)
+         .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center')
+         .setBorder(true, true, true, true, false, false)
+         .setBackground('#D6E4F0');
+    var totalRevCell = sheet.getRange(row, 3);
+    totalRevCell.setValue(grandRev)
+         .setNumberFormat('$#,##0.00')
+         .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
+         .setBorder(true, true, true, true, false, false);
+    var totalDppCell = sheet.getRange(row, 4);
+    totalDppCell.setValue(grandDpp)
+         .setNumberFormat('$#,##0.00')
+         .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
+         .setBorder(true, true, true, true, false, false);
+    if (grandRev > 0) {
       totalRevCell.setBackground(COLORS.OOS);
       totalDppCell.setBackground(COLORS.OOS);
+    } else {
+      totalRevCell.setBackground('#D6E4F0');
+      totalDppCell.setBackground('#D6E4F0');
     }
   }
 

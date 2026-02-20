@@ -445,6 +445,240 @@ function buildSummaryTab(allResults) {
     else grDppR.setBackground('#F2F2F2');
 
     finEndRow = finRow;
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SECTION 3B: TOTAL IMPACT SUMMARY (Already Lost + Projected + Total)
+    // ════════════════════════════════════════════════════════════════════════
+
+    var impRow = finRow + 2;
+
+    // Title
+    sheet.getRange(impRow, 1, 1, msTotalCols).merge()
+         .setValue('Total Impact Summary')
+         .setFontSize(12)
+         .setFontWeight('bold')
+         .setBackground(COLORS.HEADER)
+         .setFontColor(COLORS.HEADER_FG);
+    impRow += 1;
+
+    // Headers: SKU | Already Lost (Days, Rev, DPP) | Projected (Days, Rev, DPP) | Total (Days, Rev, DPP)
+    var impHeaders = [
+      'SKU',
+      'Past Days', 'Past Rev', 'Past DPP',
+      'Projected Days', 'Projected Rev', 'Projected DPP',
+      'Total Days', 'Total Rev', 'Total DPP'
+    ];
+    var impColSpans = [5, 2, 2, 2, 2, 2, 2, 2, 2, 2]; // SKU=5, rest=2 each
+
+    var ihCol = 1;
+    for (var ih = 0; ih < impHeaders.length; ih++) {
+      var ihSpan = impColSpans[ih];
+      var ihRange = sheet.getRange(impRow, ihCol, 1, ihSpan).merge()
+           .setValue(impHeaders[ih])
+           .setFontWeight('bold')
+           .setFontSize(8)
+           .setBorder(true, true, true, true, false, false)
+           .setHorizontalAlignment('center')
+           .setWrap(true);
+      // Color-code the header groups
+      if (ih >= 1 && ih <= 3) ihRange.setBackground('#FFF2CC'); // Past = warm yellow
+      else if (ih >= 4 && ih <= 6) ihRange.setBackground('#E2EFDA'); // Projected = green
+      else if (ih >= 7) ihRange.setBackground('#D6E4F0'); // Total = blue
+      else ihRange.setBackground('#E2EFDA');
+      ihCol += ihSpan;
+    }
+    impRow += 1;
+
+    // Grand totals for impact summary
+    var gPastDays = 0, gPastRev = 0, gPastDpp = 0;
+    var gProjDays = 0, gProjRev = 0, gProjDpp = 0;
+
+    // Data rows — one per SKU
+    for (var ip = 0; ip < numSkus; ip++) {
+      var ipResult = allResults[ip];
+      var ipCfg = ipResult.cfg;
+      var ipPrice = (ipCfg && ipCfg.sellingPrice) ? ipCfg.sellingPrice : 0;
+      var ipDpp   = (ipCfg && ipCfg.dppMargin) ? ipCfg.dppMargin : 0;
+
+      // Past losses: from user-entered pastOosDays
+      var pastDays = (ipCfg && ipCfg.pastOosDays) ? ipCfg.pastOosDays : 0;
+      var pastEffVel = (ipCfg && ipCfg.dailyVelocity && ipCfg.conversionRate)
+                       ? ipCfg.dailyVelocity * (ipCfg.conversionRate / 100) : 0;
+      var pastRev = pastDays * pastEffVel * ipPrice;
+      var pastDppVal = pastRev * (ipDpp / 100);
+
+      // Projected losses: sum from monthly financial data (already computed above)
+      var projDays = 0, projRev = 0, projDppVal2 = 0;
+      var ipSnaps = ipResult.snapshots;
+      for (var ipd = 0; ipd < ipSnaps.length; ipd++) {
+        if (ipSnaps[ipd].channel === 'OOS' && ipPrice > 0) {
+          projDays += 1;
+          var ipDayRev = ipSnaps[ipd].effectiveVelocity * ipPrice;
+          projRev += ipDayRev;
+          projDppVal2 += ipDayRev * (ipDpp / 100);
+        }
+      }
+
+      var totalDays = pastDays + projDays;
+      var totalRev  = pastRev + projRev;
+      var totalDpp2 = pastDppVal + projDppVal2;
+
+      // Write row
+      var ipCol = 1;
+
+      // SKU
+      sheet.getRange(impRow, ipCol, 1, impColSpans[0]).merge()
+           .setValue(ipResult.skuDef.id)
+           .setFontSize(8).setHorizontalAlignment('left')
+           .setBorder(true, true, true, true, false, false);
+      ipCol += impColSpans[0];
+
+      // Past Days
+      sheet.getRange(impRow, ipCol, 1, 2).merge()
+           .setValue(pastDays)
+           .setFontSize(8).setHorizontalAlignment('center')
+           .setBorder(true, true, true, true, false, false)
+           .setBackground(pastDays > 0 ? '#FFF2CC' : null);
+      ipCol += 2;
+
+      // Past Rev
+      var pRevR = sheet.getRange(impRow, ipCol, 1, 2).merge()
+           .setValue(pastRev)
+           .setNumberFormat('$#,##0')
+           .setFontSize(8).setHorizontalAlignment('right')
+           .setBorder(true, true, true, true, false, false);
+      if (pastRev > 0) pRevR.setBackground('#FFF2CC');
+      ipCol += 2;
+
+      // Past DPP
+      var pDppR = sheet.getRange(impRow, ipCol, 1, 2).merge()
+           .setValue(pastDppVal)
+           .setNumberFormat('$#,##0')
+           .setFontSize(8).setHorizontalAlignment('right')
+           .setBorder(true, true, true, true, false, false);
+      if (pastDppVal > 0) pDppR.setBackground('#FFF2CC');
+      ipCol += 2;
+
+      // Projected Days
+      sheet.getRange(impRow, ipCol, 1, 2).merge()
+           .setValue(projDays)
+           .setFontSize(8).setHorizontalAlignment('center')
+           .setBorder(true, true, true, true, false, false);
+      ipCol += 2;
+
+      // Projected Rev
+      var prRevR = sheet.getRange(impRow, ipCol, 1, 2).merge()
+           .setValue(projRev)
+           .setNumberFormat('$#,##0')
+           .setFontSize(8).setHorizontalAlignment('right')
+           .setBorder(true, true, true, true, false, false);
+      if (projRev > 0) prRevR.setBackground(COLORS.OOS);
+      ipCol += 2;
+
+      // Projected DPP
+      var prDppR = sheet.getRange(impRow, ipCol, 1, 2).merge()
+           .setValue(projDppVal2)
+           .setNumberFormat('$#,##0')
+           .setFontSize(8).setHorizontalAlignment('right')
+           .setBorder(true, true, true, true, false, false);
+      if (projDppVal2 > 0) prDppR.setBackground(COLORS.OOS);
+      ipCol += 2;
+
+      // Total Days
+      sheet.getRange(impRow, ipCol, 1, 2).merge()
+           .setValue(totalDays)
+           .setFontWeight('bold').setFontSize(8).setHorizontalAlignment('center')
+           .setBorder(true, true, true, true, false, false)
+           .setBackground('#D6E4F0');
+      ipCol += 2;
+
+      // Total Rev
+      var tRevR = sheet.getRange(impRow, ipCol, 1, 2).merge()
+           .setValue(totalRev)
+           .setNumberFormat('$#,##0')
+           .setFontWeight('bold').setFontSize(8).setHorizontalAlignment('right')
+           .setBorder(true, true, true, true, false, false);
+      if (totalRev > 0) tRevR.setBackground(COLORS.OOS);
+      else tRevR.setBackground('#D6E4F0');
+      ipCol += 2;
+
+      // Total DPP
+      var tDppR = sheet.getRange(impRow, ipCol, 1, 2).merge()
+           .setValue(totalDpp2)
+           .setNumberFormat('$#,##0')
+           .setFontWeight('bold').setFontSize(8).setHorizontalAlignment('right')
+           .setBorder(true, true, true, true, false, false);
+      if (totalDpp2 > 0) tDppR.setBackground(COLORS.OOS);
+      else tDppR.setBackground('#D6E4F0');
+
+      // Accumulate grand totals
+      gPastDays += pastDays;  gPastRev += pastRev;  gPastDpp += pastDppVal;
+      gProjDays += projDays;  gProjRev += projRev;  gProjDpp += projDppVal2;
+
+      impRow += 1;
+    }
+
+    // ── Impact totals row ──
+    var itCol = 1;
+    sheet.getRange(impRow, itCol, 1, impColSpans[0]).merge()
+         .setValue('ALL SKUs TOTAL')
+         .setFontWeight('bold').setFontSize(8).setHorizontalAlignment('left')
+         .setBorder(true, true, true, true, false, false)
+         .setBackground('#F2F2F2');
+    itCol += impColSpans[0];
+
+    // Past totals
+    sheet.getRange(impRow, itCol, 1, 2).merge().setValue(gPastDays)
+         .setFontWeight('bold').setFontSize(8).setHorizontalAlignment('center')
+         .setBorder(true, true, true, true, false, false).setBackground('#F2F2F2');
+    itCol += 2;
+    var gPastRevR = sheet.getRange(impRow, itCol, 1, 2).merge().setValue(gPastRev)
+         .setNumberFormat('$#,##0').setFontWeight('bold').setFontSize(8).setHorizontalAlignment('right')
+         .setBorder(true, true, true, true, false, false);
+    if (gPastRev > 0) gPastRevR.setBackground('#FFF2CC'); else gPastRevR.setBackground('#F2F2F2');
+    itCol += 2;
+    var gPastDppR = sheet.getRange(impRow, itCol, 1, 2).merge().setValue(gPastDpp)
+         .setNumberFormat('$#,##0').setFontWeight('bold').setFontSize(8).setHorizontalAlignment('right')
+         .setBorder(true, true, true, true, false, false);
+    if (gPastDpp > 0) gPastDppR.setBackground('#FFF2CC'); else gPastDppR.setBackground('#F2F2F2');
+    itCol += 2;
+
+    // Projected totals
+    sheet.getRange(impRow, itCol, 1, 2).merge().setValue(gProjDays)
+         .setFontWeight('bold').setFontSize(8).setHorizontalAlignment('center')
+         .setBorder(true, true, true, true, false, false).setBackground('#F2F2F2');
+    itCol += 2;
+    var gProjRevR = sheet.getRange(impRow, itCol, 1, 2).merge().setValue(gProjRev)
+         .setNumberFormat('$#,##0').setFontWeight('bold').setFontSize(8).setHorizontalAlignment('right')
+         .setBorder(true, true, true, true, false, false);
+    if (gProjRev > 0) gProjRevR.setBackground(COLORS.OOS); else gProjRevR.setBackground('#F2F2F2');
+    itCol += 2;
+    var gProjDppR = sheet.getRange(impRow, itCol, 1, 2).merge().setValue(gProjDpp)
+         .setNumberFormat('$#,##0').setFontWeight('bold').setFontSize(8).setHorizontalAlignment('right')
+         .setBorder(true, true, true, true, false, false);
+    if (gProjDpp > 0) gProjDppR.setBackground(COLORS.OOS); else gProjDppR.setBackground('#F2F2F2');
+    itCol += 2;
+
+    // Grand totals
+    var gTotalDays = gPastDays + gProjDays;
+    var gTotalRev  = gPastRev + gProjRev;
+    var gTotalDpp  = gPastDpp + gProjDpp;
+
+    sheet.getRange(impRow, itCol, 1, 2).merge().setValue(gTotalDays)
+         .setFontWeight('bold').setFontSize(8).setHorizontalAlignment('center')
+         .setBorder(true, true, true, true, false, false).setBackground('#D6E4F0');
+    itCol += 2;
+    var gTotRevR = sheet.getRange(impRow, itCol, 1, 2).merge().setValue(gTotalRev)
+         .setNumberFormat('$#,##0').setFontWeight('bold').setFontSize(8).setHorizontalAlignment('right')
+         .setBorder(true, true, true, true, false, false);
+    if (gTotalRev > 0) gTotRevR.setBackground(COLORS.OOS); else gTotRevR.setBackground('#D6E4F0');
+    itCol += 2;
+    var gTotDppR = sheet.getRange(impRow, itCol, 1, 2).merge().setValue(gTotalDpp)
+         .setNumberFormat('$#,##0').setFontWeight('bold').setFontSize(8).setHorizontalAlignment('right')
+         .setBorder(true, true, true, true, false, false);
+    if (gTotalDpp > 0) gTotDppR.setBackground(COLORS.OOS); else gTotDppR.setBackground('#D6E4F0');
+
+    finEndRow = impRow;
   }
 
   // Flush to ensure milestone + financial sections are committed

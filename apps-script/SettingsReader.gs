@@ -166,7 +166,8 @@ function readSkuSettings(skuId) {
 
     // ── Financials ──
     sellingPrice:      sellingPrice,
-    dppMargin:         dppMargin
+    dppMargin:         dppMargin,
+    pastOosDays:       readNum(ss,  p + '__PAST_OOS_DAYS')
   };
 }
 

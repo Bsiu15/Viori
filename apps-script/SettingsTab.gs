@@ -78,7 +78,8 @@ var SKU_INPUT_ROWS = [
   { key: 'ADHOC_TRANSIT_DAYS',    label: 'Ad-hoc shipment: transit time (days)',            defaultVal: 5,    format: 'number'  },
   // ── Financials ──
   { key: 'SELLING_PRICE',         label: 'Selling price ($)',                                defaultVal: '',   format: 'currency' },
-  { key: 'DPP_MARGIN',            label: 'DPP margin (%)',                                   defaultVal: '',   format: 'percent' }
+  { key: 'DPP_MARGIN',            label: 'DPP margin (%)',                                   defaultVal: '',   format: 'percent' },
+  { key: 'PAST_OOS_DAYS',         label: 'Past OOS days (already experienced)',              defaultVal: 0,    format: 'number'  }
 ];
 
 /**
