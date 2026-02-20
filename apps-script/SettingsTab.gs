@@ -226,7 +226,9 @@ function buildSettingsTab() {
 
   // ── Auto-calculate FBA cells ──
   // Set a formula on FBA_OVERRIDE if no manual value was saved.
-  // Formula: = ONHAND_AVAILABLE + ONHAND_FC_TRANSFER
+  // Formula: = ONHAND_AVAILABLE only.
+  // FC Transfer and FC Processing are modeled separately in the waterfall
+  // engine as delayed batches that clear after the FBA check-in delay.
   // If the user types a number, it replaces the formula (manual override).
   for (var fi = 0; fi < skus.length; fi++) {
     var fbaPrefix = namedRangePrefix(skus[fi].id);
@@ -234,7 +236,7 @@ function buildSettingsTab() {
     var fbaRange = ss.getRangeByName(fbaPrefix + '__FBA_OVERRIDE');
     if (fbaRange && !fbaSaved.hasOwnProperty('FBA_OVERRIDE')) {
       fbaRange.setFormula(
-        '=' + fbaPrefix + '__ONHAND_AVAILABLE + ' + fbaPrefix + '__ONHAND_FC_TRANSFER'
+        '=' + fbaPrefix + '__ONHAND_AVAILABLE'
       );
     }
   }

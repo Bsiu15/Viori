@@ -67,11 +67,31 @@ function runWaterfall(cfg) {
   // A batch: { units: N, availableOn: Date }
   var procBatches = [];
 
-  // If there is starting FBA processing inventory, it becomes available
-  // after the check-in delay from the start date
+  // If there is starting FBA processing inventory (Inbound: Receiving),
+  // it becomes available after the check-in delay from the start date
   if (fbaProc > 0) {
     var initAvailDate = addDays(START_DATE, cfg.fbaCheckinDelay);
     procBatches.push({ units: fbaProc, availableOn: initAvailDate });
+  }
+
+  // FC Transfer — units moving between Amazon fulfillment centers.
+  // Not sellable until they arrive at the destination FC.
+  // Uses the same FBA check-in delay.
+  var fcTransfer = cfg.onhandFcTransfer || 0;
+  if (fcTransfer > 0) {
+    var fcTransferAvailDate = addDays(START_DATE, cfg.fbaCheckinDelay);
+    procBatches.push({ units: fcTransfer, availableOn: fcTransferAvailDate });
+    fbaProc += fcTransfer;
+  }
+
+  // Reserved: FC Processing — units Amazon is verifying, inspecting,
+  // or relabeling. This IS the FBA check-in/processing pipeline.
+  // Uses the same FBA check-in delay.
+  var fcProcessing = cfg.reservedFcProc || 0;
+  if (fcProcessing > 0) {
+    var fcProcAvailDate = addDays(START_DATE, cfg.fbaCheckinDelay);
+    procBatches.push({ units: fcProcessing, availableOn: fcProcAvailDate });
+    fbaProc += fcProcessing;
   }
 
   // ── Day-by-day simulation ──
