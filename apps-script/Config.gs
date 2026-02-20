@@ -14,8 +14,12 @@ var START_DATE = new Date(2026, 1, 19); // Feb 19, 2026 (months are 0-indexed)
 /** Last day of the forecast window */
 var END_DATE   = new Date(2026, 3, 30); // Apr 30, 2026
 
-// ── SKU master list (order matters — used for row ordering everywhere) ──────
-var SKUS = [
+// ── SKU limits ──────────────────────────────────────────────────────────────
+var MAX_SKUS = 15;
+var REGISTRY_TAB_NAME = '_Registry';
+
+// ── SKU master list (defaults — used on first run, then registry takes over) ─
+var DEFAULT_SKUS = [
   {
     id:    'SB-HW-100W-FBA',
     name:  'Hidden Waterfall Shampoo Bar',
@@ -48,6 +52,52 @@ var SKUS = [
   }
 ];
 
+/**
+ * Reads the SKU list from the _Registry sheet. Falls back to DEFAULT_SKUS
+ * if the registry doesn't exist yet (pre-setup).
+ * @return {Object[]} array of {id, name, tab}
+ */
+function getSkus() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(REGISTRY_TAB_NAME);
+  if (!sheet) return DEFAULT_SKUS;
+
+  var data = sheet.getDataRange().getValues();
+  var skus = [];
+  for (var i = 1; i < data.length; i++) { // skip header row
+    if (data[i][0] && data[i][0] !== '') {
+      skus.push({
+        id:   String(data[i][0]),
+        name: String(data[i][1]),
+        tab:  String(data[i][2])
+      });
+    }
+  }
+  return skus.length > 0 ? skus : DEFAULT_SKUS;
+}
+
+/**
+ * Creates or rebuilds the _Registry sheet with the given SKU list.
+ * @param {Object[]} skus  array of {id, name, tab}
+ */
+function initRegistry(skus) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(REGISTRY_TAB_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(REGISTRY_TAB_NAME);
+  }
+  sheet.clear();
+  sheet.getRange(1, 1, 1, 3).setValues([['SKU ID', 'SKU Name', 'Tab Name']])
+       .setFontWeight('bold');
+  for (var i = 0; i < skus.length; i++) {
+    sheet.getRange(i + 2, 1, 1, 3).setValues([[skus[i].id, skus[i].name, skus[i].tab]]);
+  }
+  sheet.hideSheet();
+}
+
+// For backwards compatibility — modules that reference SKUS directly
+var SKUS = DEFAULT_SKUS;
+
 // ── Color palette (hex) ─────────────────────────────────────────────────────
 var COLORS = {
   FBA:        '#C6EFCE', // Green  — fulfilling from FBA
@@ -71,7 +121,8 @@ var SUMMARY_TAB_NAME   = 'Summary';
  * Each SKU block has the following rows:
  *  1  SKU header (merged, colored)
  *  ── Starting Inventory (mirrors Seller Central) ──
- *  2  Inbound: Working
+ *  2  FBA (available for sale) — auto-calc or manual override
+ *  3  Inbound: Working
  *  3  Inbound: Shipped
  *  4  Inbound: Receiving
  *  5  On-hand: Available
@@ -122,9 +173,12 @@ var SUMMARY_TAB_NAME   = 'Summary';
  * 47  Ad-hoc shipment: units
  * 48  Ad-hoc shipment: send date
  * 49  Ad-hoc shipment: transit time (days)
- * 50  (blank spacer row)
+ *  ── Financials ──
+ * 50  Selling price ($)
+ * 51  DPP margin (%)
+ * 52  (blank spacer row)
  */
-var ROWS_PER_SKU_BLOCK = 50;
+var ROWS_PER_SKU_BLOCK = 52;
 
 /** Column A = labels, Column B = values in the Settings tab */
 var SETTINGS_LABEL_COL = 1;

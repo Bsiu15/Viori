@@ -23,10 +23,28 @@
       font-size: 13px;
       border: 1px solid #dadce0;
       border-radius: 8px;
-      margin-bottom: 16px;
+      margin-bottom: 8px;
       background: #f8f9fa;
       font-weight: 500;
     }
+    .sku-actions {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .sku-actions button {
+      padding: 6px 12px;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      background: #f8f9fa;
+      color: #5f6368;
+      font-weight: 500;
+    }
+    .sku-actions button:hover { background: #e8eaed; }
+    .sku-actions .btn-remove { color: #d93025; border-color: #d93025; }
+    .sku-actions .btn-remove:hover { background: #fce8e6; }
     .section {
       margin-bottom: 14px;
       border: 1px solid #e8eaed;
@@ -74,6 +92,34 @@
     .field input[type="date"] {
       width: 140px;
       text-align: left;
+    }
+    /* FBA auto-calc field */
+    .fba-field-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .fba-field-wrap input {
+      width: 100px;
+    }
+    .fba-field-wrap input.auto-calc {
+      background: #e8f0fe;
+      color: #1a73e8;
+      border-color: #1a73e8;
+    }
+    .fba-reset {
+      font-size: 10px;
+      color: #1a73e8;
+      cursor: pointer;
+      text-decoration: underline;
+      white-space: nowrap;
+    }
+    .fba-reset:hover { color: #1557b0; }
+    .fba-auto-label {
+      font-size: 10px;
+      color: #80868b;
+      font-style: italic;
+      white-space: nowrap;
     }
     .btn-row {
       display: flex;
@@ -233,6 +279,27 @@
       visibility: visible;
       opacity: 1;
     }
+    /* Currency input prefix */
+    .currency-wrap {
+      display: flex;
+      align-items: center;
+    }
+    .currency-wrap .prefix {
+      font-size: 13px;
+      color: #5f6368;
+      margin-right: 2px;
+    }
+    .currency-wrap input { width: 100px; }
+    .percent-wrap {
+      display: flex;
+      align-items: center;
+    }
+    .percent-wrap input { width: 100px; }
+    .percent-wrap .suffix {
+      font-size: 13px;
+      color: #5f6368;
+      margin-left: 2px;
+    }
   </style>
 </head>
 <body>
@@ -241,12 +308,30 @@
 
   <select id="skuSelect" class="sku-select" onchange="loadSku()"></select>
 
+  <div class="sku-actions">
+    <button onclick="addSku()">+ Add SKU</button>
+    <button class="btn-remove" onclick="removeSku()">- Remove SKU</button>
+  </div>
+
   <div id="formContainer">
 
     <!-- Starting Inventory — mirrors Amazon Seller Central FBA Inventory -->
     <div class="section">
       <div class="section-header">Starting Inventory</div>
       <div class="section-body">
+
+        <!-- FBA (available for sale) — auto-calc from On-hand Available, or manual override -->
+        <div class="field" style="padding: 8px 0; border-bottom: 2px solid #e8eaed;">
+          <label style="font-weight: 600; color: #202124;">
+            FBA (available for sale)
+            <span class="info-tip" tabindex="0">i<span class="tip-text">Auto-calculated from On-hand &gt; Available. Type a number to manually override. Click "reset" to go back to auto-calc.</span></span>
+          </label>
+          <div class="fba-field-wrap">
+            <input type="number" id="FBA_OVERRIDE" min="0" oninput="onFbaInput()">
+            <span id="fbaAutoLabel" class="fba-auto-label">auto</span>
+            <span id="fbaReset" class="fba-reset" style="display:none;" onclick="resetFba()">reset</span>
+          </div>
+        </div>
 
         <!-- Inbound -->
         <div class="inv-category">
@@ -291,7 +376,7 @@
                 Available
                 <span class="info-tip" tabindex="0">i<span class="tip-text">Units ready to sell right now. When a customer orders, Amazon picks and ships from these.</span></span>
               </label>
-              <input type="number" id="ONHAND_AVAILABLE" value="0" min="0">
+              <input type="number" id="ONHAND_AVAILABLE" value="0" min="0" oninput="updateFbaAuto()">
             </div>
             <div class="field">
               <label>
@@ -591,6 +676,33 @@
       </div>
     </div>
 
+    <!-- Financials -->
+    <div class="section">
+      <div class="section-header">Financials</div>
+      <div class="section-body">
+        <div class="field">
+          <label>
+            Selling price
+            <span class="info-tip" tabindex="0">i<span class="tip-text">Your Amazon selling price per unit. Used to calculate lost revenue during OOS days.</span></span>
+          </label>
+          <div class="currency-wrap">
+            <span class="prefix">$</span>
+            <input type="number" id="SELLING_PRICE" min="0" step="0.01">
+          </div>
+        </div>
+        <div class="field">
+          <label>
+            DPP margin
+            <span class="info-tip" tabindex="0">i<span class="tip-text">Direct Product Profitability margin as a percentage. Used to calculate lost profit dollars during OOS days.</span></span>
+          </label>
+          <div class="percent-wrap">
+            <input type="number" id="DPP_MARGIN" min="0" max="100" step="0.1">
+            <span class="suffix">%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <div class="btn-row">
@@ -601,6 +713,9 @@
   <div id="status" class="status"></div>
 
   <script>
+    // Track whether FBA field is in auto-calc or manual override mode
+    var fbaIsAuto = true;
+
     // Toggle expandable inventory category
     function toggleCat(header) {
       var detail = header.nextElementSibling;
@@ -615,8 +730,54 @@
       }
     }
 
+    // FBA auto-calc: update FBA field from On-hand Available when in auto mode
+    function updateFbaAuto() {
+      if (!fbaIsAuto) return;
+      var avail = document.getElementById('ONHAND_AVAILABLE').value;
+      var fbaEl = document.getElementById('FBA_OVERRIDE');
+      fbaEl.value = avail || '0';
+    }
+
+    // When user manually types in FBA field, switch to override mode
+    function onFbaInput() {
+      fbaIsAuto = false;
+      var fbaEl = document.getElementById('FBA_OVERRIDE');
+      fbaEl.classList.remove('auto-calc');
+      document.getElementById('fbaAutoLabel').style.display = 'none';
+      document.getElementById('fbaReset').style.display = 'inline';
+    }
+
+    // Reset FBA back to auto-calc from On-hand Available
+    function resetFba() {
+      fbaIsAuto = true;
+      var fbaEl = document.getElementById('FBA_OVERRIDE');
+      fbaEl.value = '';
+      fbaEl.classList.add('auto-calc');
+      document.getElementById('fbaAutoLabel').style.display = 'inline';
+      document.getElementById('fbaReset').style.display = 'none';
+      updateFbaAuto();
+    }
+
+    // Set FBA field visual state based on whether it has a value
+    function setFbaVisualState(hasOverride) {
+      var fbaEl = document.getElementById('FBA_OVERRIDE');
+      if (hasOverride) {
+        fbaIsAuto = false;
+        fbaEl.classList.remove('auto-calc');
+        document.getElementById('fbaAutoLabel').style.display = 'none';
+        document.getElementById('fbaReset').style.display = 'inline';
+      } else {
+        fbaIsAuto = true;
+        fbaEl.classList.add('auto-calc');
+        document.getElementById('fbaAutoLabel').style.display = 'inline';
+        document.getElementById('fbaReset').style.display = 'none';
+        updateFbaAuto();
+      }
+    }
+
     // All field IDs that map to named range keys
     var FIELD_IDS = [
+      'FBA_OVERRIDE',
       'INBOUND_WORKING', 'INBOUND_SHIPPED', 'INBOUND_RECEIVING',
       'ONHAND_AVAILABLE', 'ONHAND_FC_TRANSFER',
       'RESERVED_CUSTOMER_ORDER', 'RESERVED_FC_PROCESSING',
@@ -635,7 +796,8 @@
       'SPD_UNITS', 'SPD_SEND_DATE', 'SPD_TRANSIT_DAYS',
       'LTL_UNITS', 'LTL_SEND_DATE', 'LTL_TRANSIT_DAYS',
       'DTC_UNITS', 'DTC_START_DATE', 'DTC_END_DATE',
-      'ADHOC_UNITS', 'ADHOC_SEND_DATE', 'ADHOC_TRANSIT_DAYS'
+      'ADHOC_UNITS', 'ADHOC_SEND_DATE', 'ADHOC_TRANSIT_DAYS',
+      'SELLING_PRICE', 'DPP_MARGIN'
     ];
 
     // Date field IDs
@@ -658,10 +820,11 @@
     // Populate SKU dropdown on load
     google.script.run.withSuccessHandler(function(skus) {
       var sel = document.getElementById('skuSelect');
+      sel.innerHTML = '';
       for (var i = 0; i < skus.length; i++) {
         var opt = document.createElement('option');
         opt.value = skus[i].id;
-        opt.textContent = skus[i].id + '  —  ' + skus[i].name;
+        opt.textContent = skus[i].id + '  \u2014  ' + skus[i].name;
         sel.appendChild(opt);
       }
       loadSku();
@@ -670,6 +833,7 @@
     // Load values for the selected SKU
     function loadSku() {
       var skuId = document.getElementById('skuSelect').value;
+      if (!skuId) return;
       showStatus('Loading...', '');
 
       google.script.run.withSuccessHandler(function(values) {
@@ -697,49 +861,144 @@
             el.value = (val !== null && val !== undefined) ? val : '';
           }
         }
+
+        // Set FBA field state: if FBA_OVERRIDE has a value, it's manual; otherwise auto-calc
+        var fbaVal = values['FBA_OVERRIDE'];
+        setFbaVisualState(fbaVal !== null && fbaVal !== undefined && fbaVal !== '');
+
         hideStatus();
       }).withFailureHandler(function(err) {
         showStatus('Error loading: ' + err.message, 'error');
       }).getSkuSettingsForDialog(skuId);
     }
 
-    // Save values for the selected SKU
-    function saveSku(callback) {
-      var skuId = document.getElementById('skuSelect').value;
+    // Collect form values into an object
+    function collectValues() {
       var values = {};
-
       for (var i = 0; i < FIELD_IDS.length; i++) {
         var id = FIELD_IDS[i];
         var el = document.getElementById(id);
         if (!el) continue;
 
-        if (isDateField(id)) {
-          values[id] = el.value || null; // send yyyy-mm-dd string or null
+        if (id === 'FBA_OVERRIDE') {
+          // If auto mode, send null (no override); if manual, send the value
+          if (fbaIsAuto) {
+            values[id] = null;
+          } else {
+            values[id] = el.value !== '' ? Number(el.value) : null;
+          }
+        } else if (isDateField(id)) {
+          values[id] = el.value || null;
         } else {
           values[id] = el.value !== '' ? Number(el.value) : null;
         }
       }
+      return values;
+    }
+
+    // Save This SKU: save + recalculate only this SKU's detail tab
+    function saveSku() {
+      var skuId = document.getElementById('skuSelect').value;
+      var values = collectValues();
 
       showStatus('<span class="spinner"></span> Saving...', '');
 
       google.script.run.withSuccessHandler(function() {
-        showStatus('Saved successfully', 'success');
-        if (callback) callback();
+        showStatus('<span class="spinner"></span> Recalculating SKU...', '');
+        google.script.run.withSuccessHandler(function() {
+          showStatus('Saved and recalculated', 'success');
+        }).withFailureHandler(function(err) {
+          showStatus('Error recalculating: ' + err.message, 'error');
+        }).recalculateSku(skuId);
       }).withFailureHandler(function(err) {
         showStatus('Error saving: ' + err.message, 'error');
       }).saveSkuSettingsFromDialog(skuId, values);
     }
 
-    // Save and recalculate all
+    // Save + Recalculate: save this SKU + rebuild ALL tabs and Summary
     function saveAndRecalc() {
-      saveSku(function() {
+      var skuId = document.getElementById('skuSelect').value;
+      var values = collectValues();
+
+      showStatus('<span class="spinner"></span> Saving...', '');
+
+      google.script.run.withSuccessHandler(function() {
         showStatus('<span class="spinner"></span> Recalculating all tabs...', '');
         google.script.run.withSuccessHandler(function() {
-          showStatus('Saved and recalculated', 'success');
+          showStatus('Saved and recalculated all', 'success');
         }).withFailureHandler(function(err) {
           showStatus('Error: ' + err.message, 'error');
         }).recalculateAll();
-      });
+      }).withFailureHandler(function(err) {
+        showStatus('Error saving: ' + err.message, 'error');
+      }).saveSkuSettingsFromDialog(skuId, values);
+    }
+
+    // Add a new SKU
+    function addSku() {
+      var skuId = prompt('Enter the new SKU ID (e.g., SB-NEW-100W-FBA):');
+      if (!skuId) return;
+      var skuName = prompt('Enter the SKU display name (e.g., New Product Shampoo Bar):');
+      if (!skuName) return;
+
+      showStatus('<span class="spinner"></span> Adding SKU...', '');
+
+      google.script.run.withSuccessHandler(function(error) {
+        if (error) {
+          showStatus(error, 'error');
+          return;
+        }
+        showStatus('SKU added! Reloading...', 'success');
+        // Reload the dropdown
+        google.script.run.withSuccessHandler(function(skus) {
+          var sel = document.getElementById('skuSelect');
+          sel.innerHTML = '';
+          for (var i = 0; i < skus.length; i++) {
+            var opt = document.createElement('option');
+            opt.value = skus[i].id;
+            opt.textContent = skus[i].id + '  \u2014  ' + skus[i].name;
+            sel.appendChild(opt);
+          }
+          // Select the newly added SKU
+          sel.value = skuId;
+          loadSku();
+        }).getSkuList();
+      }).withFailureHandler(function(err) {
+        showStatus('Error: ' + err.message, 'error');
+      }).addNewSku(skuId, skuName);
+    }
+
+    // Remove the currently selected SKU
+    function removeSku() {
+      var skuId = document.getElementById('skuSelect').value;
+      if (!skuId) return;
+
+      var confirmed = confirm('Remove SKU "' + skuId + '"?\n\nThis will delete its detail tab and all saved settings. This cannot be undone.');
+      if (!confirmed) return;
+
+      showStatus('<span class="spinner"></span> Removing SKU...', '');
+
+      google.script.run.withSuccessHandler(function(error) {
+        if (error) {
+          showStatus(error, 'error');
+          return;
+        }
+        showStatus('SKU removed! Reloading...', 'success');
+        // Reload the dropdown
+        google.script.run.withSuccessHandler(function(skus) {
+          var sel = document.getElementById('skuSelect');
+          sel.innerHTML = '';
+          for (var i = 0; i < skus.length; i++) {
+            var opt = document.createElement('option');
+            opt.value = skus[i].id;
+            opt.textContent = skus[i].id + '  \u2014  ' + skus[i].name;
+            sel.appendChild(opt);
+          }
+          loadSku();
+        }).getSkuList();
+      }).withFailureHandler(function(err) {
+        showStatus('Error: ' + err.message, 'error');
+      }).removeExistingSku(skuId);
     }
 
     function showStatus(msg, type) {

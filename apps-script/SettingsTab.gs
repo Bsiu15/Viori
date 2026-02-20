@@ -17,6 +17,8 @@
  * "format" is optional: "date" applies date formatting, "percent" applies %.
  */
 var SKU_INPUT_ROWS = [
+  // ── FBA (auto-calculated or manual override) ──
+  { key: 'FBA_OVERRIDE',                label: 'FBA (available for sale)',                       defaultVal: '',   format: 'number'  },
   // ── Starting Inventory: Inbound ──
   { key: 'INBOUND_WORKING',             label: 'Inbound: Working',                              defaultVal: 0,    format: 'number'  },
   { key: 'INBOUND_SHIPPED',             label: 'Inbound: Shipped',                              defaultVal: 0,    format: 'number'  },
@@ -73,7 +75,10 @@ var SKU_INPUT_ROWS = [
   { key: 'DTC_END_DATE',          label: 'DTC bridge: end date',                            defaultVal: '',   format: 'date'    },
   { key: 'ADHOC_UNITS',           label: 'Ad-hoc shipment: units',                         defaultVal: 0,    format: 'number'  },
   { key: 'ADHOC_SEND_DATE',       label: 'Ad-hoc shipment: send date',                     defaultVal: '',   format: 'date'    },
-  { key: 'ADHOC_TRANSIT_DAYS',    label: 'Ad-hoc shipment: transit time (days)',            defaultVal: 5,    format: 'number'  }
+  { key: 'ADHOC_TRANSIT_DAYS',    label: 'Ad-hoc shipment: transit time (days)',            defaultVal: 5,    format: 'number'  },
+  // ── Financials ──
+  { key: 'SELLING_PRICE',         label: 'Selling price ($)',                                defaultVal: '',   format: 'currency' },
+  { key: 'DPP_MARGIN',            label: 'DPP margin (%)',                                   defaultVal: '',   format: 'percent' }
 ];
 
 /**
@@ -103,11 +108,12 @@ function buildSettingsTab() {
   sheet.clearFormats();
 
   // Remove existing named ranges that belong to our SKU inputs
+  var skusForCleanup = getSkus();
   var existingRanges = ss.getNamedRanges();
   for (var r = 0; r < existingRanges.length; r++) {
     var rName = existingRanges[r].getName();
-    for (var s = 0; s < SKUS.length; s++) {
-      if (rName.indexOf(namedRangePrefix(SKUS[s].id)) === 0) {
+    for (var s = 0; s < skusForCleanup.length; s++) {
+      if (rName.indexOf(namedRangePrefix(skusForCleanup[s].id)) === 0) {
         existingRanges[r].remove();
         break;
       }
@@ -129,8 +135,9 @@ function buildSettingsTab() {
   row += 2; // blank spacer
 
   // ── Build each SKU block ──
-  for (var i = 0; i < SKUS.length; i++) {
-    var sku = SKUS[i];
+  var skus = getSkus();
+  for (var i = 0; i < skus.length; i++) {
+    var sku = skus[i];
     var prefix = namedRangePrefix(sku.id);
 
     // SKU header row
@@ -162,6 +169,8 @@ function buildSettingsTab() {
         valueCell.setNumberFormat('m/d/yyyy');
       } else if (input.format === 'percent') {
         valueCell.setNumberFormat('0.0"%"');
+      } else if (input.format === 'currency') {
+        valueCell.setNumberFormat('$#,##0.00');
       } else {
         valueCell.setNumberFormat('#,##0');
       }

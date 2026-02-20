@@ -7,10 +7,13 @@
  *   onOpen()                    — Adds custom menu
  *   openSettingsDialog()        — Opens the SKU settings sidebar
  *   initialSetup()              — First-time setup
- *   recalculateAll()            — Full recalculation
+ *   recalculateAll()            — Full recalculation (all SKUs + Summary)
+ *   recalculateSku(skuId)       — Single SKU recalculation (detail tab only)
  *   getSkuList()                — Returns SKU list for the dialog
  *   getSkuSettingsForDialog()   — Reads one SKU's settings for the dialog
  *   saveSkuSettingsFromDialog() — Writes one SKU's settings from the dialog
+ *   addNewSku(skuId, skuName)   — Adds a new SKU to the registry
+ *   removeExistingSku(skuId)    — Removes a SKU from the registry
  * ---------------------------------------------------------------------------
  */
 
@@ -45,9 +48,10 @@ function openSettingsDialog() {
  * @return {Object[]} array of {id, name}
  */
 function getSkuList() {
+  var skus = getSkus();
   var list = [];
-  for (var i = 0; i < SKUS.length; i++) {
-    list.push({ id: SKUS[i].id, name: SKUS[i].name });
+  for (var i = 0; i < skus.length; i++) {
+    list.push({ id: skus[i].id, name: skus[i].name });
   }
   return list;
 }
@@ -64,6 +68,7 @@ function getSkuSettingsForDialog(skuId) {
   var result = {};
 
   var fields = [
+    'FBA_OVERRIDE',
     'INBOUND_WORKING', 'INBOUND_SHIPPED', 'INBOUND_RECEIVING',
     'ONHAND_AVAILABLE', 'ONHAND_FC_TRANSFER',
     'RESERVED_CUSTOMER_ORDER', 'RESERVED_FC_PROCESSING',
@@ -82,7 +87,8 @@ function getSkuSettingsForDialog(skuId) {
     'SPD_UNITS', 'SPD_SEND_DATE', 'SPD_TRANSIT_DAYS',
     'LTL_UNITS', 'LTL_SEND_DATE', 'LTL_TRANSIT_DAYS',
     'DTC_UNITS', 'DTC_START_DATE', 'DTC_END_DATE',
-    'ADHOC_UNITS', 'ADHOC_SEND_DATE', 'ADHOC_TRANSIT_DAYS'
+    'ADHOC_UNITS', 'ADHOC_SEND_DATE', 'ADHOC_TRANSIT_DAYS',
+    'SELLING_PRICE', 'DPP_MARGIN'
   ];
 
   for (var i = 0; i < fields.length; i++) {
@@ -152,11 +158,15 @@ function saveSkuSettingsFromDialog(skuId, values) {
 }
 
 /**
- * First-time setup: builds the Settings tab with defaults, then runs
- * a full forecast calculation.
+ * First-time setup: initializes the registry, builds the Settings tab
+ * with defaults, then runs a full forecast calculation.
  */
 function initialSetup() {
   var ui = SpreadsheetApp.getUi();
+  var skus = getSkus();
+
+  // Initialize the SKU registry
+  initRegistry(skus);
 
   // Build the Settings tab with all per-SKU input sections
   buildSettingsTab();
@@ -169,7 +179,7 @@ function initialSetup() {
 
   ui.alert(
     'Setup Complete',
-    'Settings tab created with defaults for all 6 SKUs.\n' +
+    'Settings tab created with defaults for ' + skus.length + ' SKUs.\n' +
     'Detail tabs and Summary tab generated.\n' +
     'Auto-refresh trigger installed.\n\n' +
     'Use "Inventory Forecast > Edit SKU Settings" to enter your data.',
@@ -182,17 +192,17 @@ function initialSetup() {
  * for each SKU, renders all detail tabs, and rebuilds the Summary tab.
  */
 function recalculateAll() {
-  var allSettings = readAllSkuSettings();
-  var allResults  = [];
+  var skus = getSkus();
+  var allResults = [];
 
-  for (var i = 0; i < SKUS.length; i++) {
-    var skuDef    = SKUS[i];
-    var cfg       = allSettings[i];
+  for (var i = 0; i < skus.length; i++) {
+    var skuDef    = skus[i];
+    var cfg       = readSkuSettings(skuDef.id);
     var snapshots = runWaterfall(cfg);
     var milestones = extractMilestones(snapshots, cfg);
 
     // Build the detail tab for this SKU
-    buildDetailTab(skuDef, snapshots);
+    buildDetailTab(skuDef, snapshots, cfg);
 
     allResults.push({
       skuDef:     skuDef,
@@ -221,6 +231,133 @@ function recalculateAll() {
   }
 
   SpreadsheetApp.flush();
+}
+
+/**
+ * Single-SKU recalculation: saves and recalculates only the specified
+ * SKU's detail tab. Does NOT rebuild the Summary tab.
+ * Called from the dialog's "Save This SKU" button.
+ *
+ * @param {string} skuId
+ */
+function recalculateSku(skuId) {
+  var skus = getSkus();
+  var skuDef = null;
+  for (var i = 0; i < skus.length; i++) {
+    if (skus[i].id === skuId) {
+      skuDef = skus[i];
+      break;
+    }
+  }
+  if (!skuDef) return;
+
+  var cfg       = readSkuSettings(skuId);
+  var snapshots = runWaterfall(cfg);
+
+  // Rebuild only this SKU's detail tab
+  buildDetailTab(skuDef, snapshots, cfg);
+
+  SpreadsheetApp.flush();
+}
+
+/**
+ * Adds a new SKU to the registry and rebuilds the Settings tab.
+ * Returns an error string if the SKU can't be added, or null on success.
+ *
+ * @param {string} skuId    e.g. "SB-NEW-100W-FBA"
+ * @param {string} skuName  e.g. "New Product Shampoo Bar"
+ * @return {string|null} error message or null
+ */
+function addNewSku(skuId, skuName) {
+  var skus = getSkus();
+
+  // Enforce max limit
+  if (skus.length >= MAX_SKUS) {
+    return 'Maximum of ' + MAX_SKUS + ' SKUs reached. Google Sheets performance ' +
+           'degrades with too many tabs and named ranges. Please remove an existing ' +
+           'SKU or create a new spreadsheet for additional SKUs.';
+  }
+
+  // Check for duplicate
+  for (var i = 0; i < skus.length; i++) {
+    if (skus[i].id === skuId) {
+      return 'SKU "' + skuId + '" already exists.';
+    }
+  }
+
+  // Validate input
+  if (!skuId || skuId.trim() === '') return 'SKU ID cannot be empty.';
+  if (!skuName || skuName.trim() === '') return 'SKU name cannot be empty.';
+
+  // Generate tab name (truncate if needed to fit Sheets' 100-char limit)
+  var tabName = 'SKU - ' + skuId;
+  if (tabName.length > 100) tabName = tabName.substring(0, 100);
+
+  var newSku = { id: skuId.trim(), name: skuName.trim(), tab: tabName };
+  skus.push(newSku);
+
+  // Update the registry
+  initRegistry(skus);
+
+  // Rebuild the Settings tab so named ranges exist for the new SKU
+  buildSettingsTab();
+
+  return null; // success
+}
+
+/**
+ * Removes an existing SKU from the registry, deletes its detail tab,
+ * and rebuilds the Settings tab.
+ *
+ * @param {string} skuId
+ * @return {string|null} error message or null
+ */
+function removeExistingSku(skuId) {
+  var skus = getSkus();
+
+  // Find the SKU
+  var idx = -1;
+  var skuDef = null;
+  for (var i = 0; i < skus.length; i++) {
+    if (skus[i].id === skuId) {
+      idx = i;
+      skuDef = skus[i];
+      break;
+    }
+  }
+  if (idx === -1) return 'SKU "' + skuId + '" not found.';
+
+  // Don't allow removal of the last SKU
+  if (skus.length <= 1) {
+    return 'Cannot remove the last SKU. At least one SKU must remain.';
+  }
+
+  // Remove from array
+  skus.splice(idx, 1);
+
+  // Update registry
+  initRegistry(skus);
+
+  // Delete the SKU's detail tab
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(skuDef.tab);
+  if (sheet) {
+    ss.deleteSheet(sheet);
+  }
+
+  // Remove named ranges for this SKU
+  var prefix = namedRangePrefix(skuId);
+  var existingRanges = ss.getNamedRanges();
+  for (var r = 0; r < existingRanges.length; r++) {
+    if (existingRanges[r].getName().indexOf(prefix) === 0) {
+      existingRanges[r].remove();
+    }
+  }
+
+  // Rebuild Settings tab (without the removed SKU)
+  buildSettingsTab();
+
+  return null; // success
 }
 
 /**
@@ -276,9 +413,10 @@ function installTrigger() {
  */
 function deleteGeneratedTabs() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var skus = getSkus();
 
-  for (var i = 0; i < SKUS.length; i++) {
-    var sheet = ss.getSheetByName(SKUS[i].tab);
+  for (var i = 0; i < skus.length; i++) {
+    var sheet = ss.getSheetByName(skus[i].tab);
     if (sheet) ss.deleteSheet(sheet);
   }
 

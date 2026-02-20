@@ -79,6 +79,9 @@ function readSkuSettings(skuId) {
     }
   }
 
+  // ── Read FBA override (manual override for total FBA available) ──
+  var fbaOverride = readNamedRange(ss, p + '__FBA_OVERRIDE');
+
   // ── Read granular inventory fields (mirrors Seller Central) ──
   var inboundWorking    = readNum(ss, p + '__INBOUND_WORKING');
   var inboundShipped    = readNum(ss, p + '__INBOUND_SHIPPED');
@@ -95,12 +98,21 @@ function readSkuSettings(skuId) {
   var unfulfillCarrDmg  = readNum(ss, p + '__UNFULFILLABLE_CARRIER_DAMAGED');
   var unfulfillDistDmg  = readNum(ss, p + '__UNFULFILLABLE_DISTRIBUTOR_DAMAGED');
 
+  // ── Read financial fields ──
+  var sellingPriceRaw = readNamedRange(ss, p + '__SELLING_PRICE');
+  var sellingPrice    = (sellingPriceRaw !== null) ? Number(sellingPriceRaw) || 0 : 0;
+  var dppMarginRaw    = readNamedRange(ss, p + '__DPP_MARGIN');
+  var dppMargin       = (dppMarginRaw !== null) ? Number(dppMarginRaw) || 0 : 0;
+
+  // FBA available: use manual override if set, otherwise use On-hand Available
+  var effectiveFbaAvailable = (fbaOverride !== null) ? Number(fbaOverride) || 0 : onhandAvailable;
+
   return {
     skuId:             skuId,
 
     // ── Engine inventory buckets (derived from granular fields) ──
-    // On-hand Available → primary FBA selling bucket
-    fbaAvailable:      onhandAvailable,
+    // FBA override takes precedence; otherwise On-hand Available is used
+    fbaAvailable:      effectiveFbaAvailable,
     // Inbound Receiving → units at Amazon being checked in (becomes available after delay)
     fbaProcessing:     inboundReceiving,
     fbaCheckinDelay:   readNum(ss,  p + '__FBA_CHECKIN_DELAY'),
@@ -150,7 +162,11 @@ function readSkuSettings(skuId) {
     // ── Ad-hoc shipment ──
     adhocUnits:        readNum(ss,  p + '__ADHOC_UNITS'),
     adhocSendDate:     readDate(ss, p + '__ADHOC_SEND_DATE'),
-    adhocTransitDays:  readNum(ss,  p + '__ADHOC_TRANSIT_DAYS')
+    adhocTransitDays:  readNum(ss,  p + '__ADHOC_TRANSIT_DAYS'),
+
+    // ── Financials ──
+    sellingPrice:      sellingPrice,
+    dppMargin:         dppMargin
   };
 }
 
@@ -159,9 +175,10 @@ function readSkuSettings(skuId) {
  * @return {Object[]}
  */
 function readAllSkuSettings() {
+  var skus = getSkus();
   var results = [];
-  for (var i = 0; i < SKUS.length; i++) {
-    results.push(readSkuSettings(SKUS[i].id));
+  for (var i = 0; i < skus.length; i++) {
+    results.push(readSkuSettings(skus[i].id));
   }
   return results;
 }

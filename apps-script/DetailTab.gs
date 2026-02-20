@@ -12,6 +12,10 @@
  *   Line 3: Sold X units
  *   Line 4: End FBA: X | FBM: X
  *   Line 5: Event (if any)
+ *   Line 6: Lost: $X rev (OOS days only, when financials are set)
+ *
+ * Below the calendar grid, a Financial Impact Summary table shows:
+ *   Per-month OOS days, Lost Revenue, Lost DPP
  * ---------------------------------------------------------------------------
  */
 
@@ -58,12 +62,23 @@ function fmtNum(n) {
 }
 
 /**
+ * Formats a dollar amount compactly.
+ * @param {number} n
+ * @return {string}
+ */
+function fmtDollar(n) {
+  if (n >= 1000) return '$' + (Math.round(n / 100) / 10).toFixed(1) + 'k';
+  return '$' + (Math.round(n * 100) / 100).toFixed(2);
+}
+
+/**
  * Builds (or rebuilds) a single SKU detail tab as a calendar grid.
  *
  * @param {Object} skuDef      SKU definition from SKUS array
  * @param {DaySnapshot[]} data Waterfall results from runWaterfall()
+ * @param {Object} [cfg]       SKU settings (for sellingPrice and dppMargin)
  */
-function buildDetailTab(skuDef, data) {
+function buildDetailTab(skuDef, data, cfg) {
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(skuDef.tab);
 
@@ -72,6 +87,11 @@ function buildDetailTab(skuDef, data) {
   }
   sheet.clear();
   sheet.clearFormats();
+
+  // Financial fields
+  var sellingPrice = (cfg && cfg.sellingPrice) ? cfg.sellingPrice : 0;
+  var dppMargin    = (cfg && cfg.dppMargin) ? cfg.dppMargin : 0;
+  var hasFinancials = sellingPrice > 0;
 
   // Build snapshot lookup
   var snapMap = buildSnapshotMap(data);
@@ -124,6 +144,13 @@ function buildDetailTab(skuDef, data) {
   // ── Column widths ──
   for (var cw = 1; cw <= numCols; cw++) {
     sheet.setColumnWidth(cw, 145);
+  }
+
+  // Track OOS financial data per month for the summary table
+  // monthKey -> { oosDays, lostRevenue, lostDpp }
+  var monthFinancials = {};
+  for (var mi2 = 0; mi2 < months.length; mi2++) {
+    monthFinancials[months[mi2].name] = { oosDays: 0, lostRevenue: 0, lostDpp: 0 };
   }
 
   // ── Render each month ──
@@ -207,6 +234,18 @@ function buildDetailTab(skuDef, data) {
               lines.push(evt);
             }
 
+            // OOS financial impact line
+            if (snap.channel === 'OOS' && hasFinancials) {
+              var dayLostRev = snap.effectiveVelocity * sellingPrice;
+              var dayLostDpp = dayLostRev * (dppMargin / 100);
+              lines.push('Lost: ' + fmtDollar(dayLostRev) + ' rev');
+
+              // Accumulate for monthly summary
+              monthFinancials[mo.name].oosDays += 1;
+              monthFinancials[mo.name].lostRevenue += dayLostRev;
+              monthFinancials[mo.name].lostDpp += dayLostDpp;
+            }
+
             cellValues.push(lines.join('\n'));
 
             // Determine background color
@@ -243,11 +282,107 @@ function buildDetailTab(skuDef, data) {
       }
 
       // Set row height to fit calendar cells
-      sheet.setRowHeight(weekRow, 85);
+      sheet.setRowHeight(weekRow, 95);
       weekRow += 1;
     }
 
     row = weekRow + 1; // spacer between months
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // FINANCIAL IMPACT SUMMARY TABLE (below calendar, only if financials set)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  if (hasFinancials) {
+    row += 1;
+
+    // Title
+    sheet.getRange(row, 1, 1, numCols).merge()
+         .setValue('OOS Financial Impact — ' + skuDef.id)
+         .setFontSize(12)
+         .setFontWeight('bold')
+         .setBackground(COLORS.HEADER)
+         .setFontColor(COLORS.HEADER_FG)
+         .setHorizontalAlignment('left');
+    row += 1;
+
+    // Headers
+    var finHeaders = ['Month', 'OOS Days', 'Lost Revenue', 'Lost DPP'];
+    for (var fh = 0; fh < finHeaders.length; fh++) {
+      sheet.getRange(row, fh + 1)
+           .setValue(finHeaders[fh])
+           .setFontWeight('bold')
+           .setFontSize(10)
+           .setBackground('#E2EFDA')
+           .setHorizontalAlignment('center')
+           .setBorder(true, true, true, true, false, false);
+    }
+    row += 1;
+
+    // Monthly rows
+    var totalOosDays = 0, totalLostRev = 0, totalLostDpp = 0;
+    for (var fm = 0; fm < months.length; fm++) {
+      var mName = months[fm].name;
+      var mf = monthFinancials[mName];
+      totalOosDays += mf.oosDays;
+      totalLostRev += mf.lostRevenue;
+      totalLostDpp += mf.lostDpp;
+
+      sheet.getRange(row, 1).setValue(mName)
+           .setFontSize(10).setHorizontalAlignment('left')
+           .setBorder(true, true, true, true, false, false);
+      sheet.getRange(row, 2).setValue(mf.oosDays)
+           .setFontSize(10).setHorizontalAlignment('center')
+           .setBorder(true, true, true, true, false, false);
+
+      var revCell = sheet.getRange(row, 3);
+      revCell.setValue(mf.lostRevenue)
+             .setNumberFormat('$#,##0.00')
+             .setFontSize(10).setHorizontalAlignment('right')
+             .setBorder(true, true, true, true, false, false);
+
+      var dppCell = sheet.getRange(row, 4);
+      dppCell.setValue(mf.lostDpp)
+             .setNumberFormat('$#,##0.00')
+             .setFontSize(10).setHorizontalAlignment('right')
+             .setBorder(true, true, true, true, false, false);
+
+      // Subtle red background on loss numbers
+      if (mf.lostRevenue > 0) {
+        revCell.setBackground(COLORS.OOS);
+        dppCell.setBackground(COLORS.OOS);
+      }
+
+      row += 1;
+    }
+
+    // Totals row
+    sheet.getRange(row, 1).setValue('TOTAL')
+         .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('left')
+         .setBorder(true, true, true, true, false, false)
+         .setBackground('#F2F2F2');
+    sheet.getRange(row, 2).setValue(totalOosDays)
+         .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center')
+         .setBorder(true, true, true, true, false, false)
+         .setBackground('#F2F2F2');
+
+    var totalRevCell = sheet.getRange(row, 3);
+    totalRevCell.setValue(totalLostRev)
+         .setNumberFormat('$#,##0.00')
+         .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
+         .setBorder(true, true, true, true, false, false);
+
+    var totalDppCell = sheet.getRange(row, 4);
+    totalDppCell.setValue(totalLostDpp)
+         .setNumberFormat('$#,##0.00')
+         .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
+         .setBorder(true, true, true, true, false, false);
+
+    // Subtle red on total loss numbers
+    if (totalLostRev > 0) {
+      totalRevCell.setBackground(COLORS.OOS);
+      totalDppCell.setBackground(COLORS.OOS);
+    }
   }
 
   // ── Bold the day numbers in each cell ──
