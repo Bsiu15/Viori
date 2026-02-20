@@ -4,12 +4,13 @@
  * Orchestration layer — ties together all modules.
  *
  * Entry points:
- *   onOpen()          — Adds a custom menu to the spreadsheet
- *   onEditTrigger(e)  — Installable onEdit trigger; recalculates when
- *                        Settings tab values change
- *   initialSetup()    — First-time setup: builds Settings tab, runs forecast
- *   recalculateAll()  — Full recalculation of all SKU detail tabs + Summary
- *   installTrigger()  — Creates the installable onEdit trigger
+ *   onOpen()                    — Adds custom menu
+ *   openSettingsDialog()        — Opens the SKU settings sidebar
+ *   initialSetup()              — First-time setup
+ *   recalculateAll()            — Full recalculation
+ *   getSkuList()                — Returns SKU list for the dialog
+ *   getSkuSettingsForDialog()   — Reads one SKU's settings for the dialog
+ *   saveSkuSettingsFromDialog() — Writes one SKU's settings from the dialog
  * ---------------------------------------------------------------------------
  */
 
@@ -19,10 +20,119 @@
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Inventory Forecast')
-    .addItem('Initial Setup (first time)', 'initialSetup')
+    .addItem('Edit SKU Settings', 'openSettingsDialog')
+    .addSeparator()
     .addItem('Recalculate All', 'recalculateAll')
+    .addSeparator()
+    .addItem('Initial Setup (first time)', 'initialSetup')
     .addItem('Install Auto-Refresh Trigger', 'installTrigger')
     .addToUi();
+}
+
+/**
+ * Opens the SKU settings sidebar.
+ */
+function openSettingsDialog() {
+  var html = HtmlService.createHtmlOutputFromFile('SettingsDialog')
+    .setTitle('SKU Settings')
+    .setWidth(380);
+  SpreadsheetApp.getUi().showSidebar(html);
+}
+
+/**
+ * Returns the SKU list for the dialog dropdown.
+ * Called from client-side JS.
+ * @return {Object[]} array of {id, name}
+ */
+function getSkuList() {
+  var list = [];
+  for (var i = 0; i < SKUS.length; i++) {
+    list.push({ id: SKUS[i].id, name: SKUS[i].name });
+  }
+  return list;
+}
+
+/**
+ * Reads one SKU's current settings and returns them as a flat object
+ * for the dialog form. Dates are returned as ISO strings.
+ * @param {string} skuId
+ * @return {Object}
+ */
+function getSkuSettingsForDialog(skuId) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var p  = namedRangePrefix(skuId);
+  var result = {};
+
+  var fields = [
+    'FBA_AVAILABLE', 'FBA_PROCESSING', 'FBA_CHECKIN_DELAY', 'FBM_ONHAND',
+    'DAILY_VELOCITY', 'VEL_OVERRIDE_START', 'VEL_OVERRIDE_END', 'VEL_OVERRIDE_VALUE',
+    'CONVERSION_RATE', 'CR_OVERRIDE_START', 'CR_OVERRIDE_END', 'CR_OVERRIDE_VALUE',
+    'SPD_UNITS', 'SPD_SEND_DATE', 'SPD_TRANSIT_DAYS',
+    'LTL_UNITS', 'LTL_SEND_DATE', 'LTL_TRANSIT_DAYS',
+    'DTC_UNITS', 'DTC_START_DATE', 'DTC_END_DATE',
+    'ADHOC_UNITS', 'ADHOC_SEND_DATE', 'ADHOC_TRANSIT_DAYS'
+  ];
+
+  for (var i = 0; i < fields.length; i++) {
+    var key = fields[i];
+    var val = readNamedRange(ss, p + '__' + key);
+
+    // Convert Date objects to ISO string for the HTML form
+    if (val instanceof Date) {
+      result[key] = val.toISOString();
+    } else {
+      result[key] = val;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Saves one SKU's settings from the dialog form back to the Settings tab.
+ * Dates arrive as "yyyy-mm-dd" strings or null.
+ * @param {string} skuId
+ * @param {Object} values  flat object of field key -> value
+ */
+function saveSkuSettingsFromDialog(skuId, values) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var p  = namedRangePrefix(skuId);
+
+  var dateFields = [
+    'VEL_OVERRIDE_START', 'VEL_OVERRIDE_END',
+    'CR_OVERRIDE_START', 'CR_OVERRIDE_END',
+    'SPD_SEND_DATE', 'LTL_SEND_DATE',
+    'DTC_START_DATE', 'DTC_END_DATE',
+    'ADHOC_SEND_DATE'
+  ];
+
+  for (var key in values) {
+    var rangeName = p + '__' + key;
+    var range = ss.getRangeByName(rangeName);
+    if (!range) continue;
+
+    var val = values[key];
+
+    if (dateFields.indexOf(key) > -1) {
+      // Date field: convert "yyyy-mm-dd" string to Date, or clear
+      if (val && val !== '') {
+        var parts = val.split('-');
+        var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        range.setValue(d);
+      } else {
+        range.setValue('');
+      }
+    } else {
+      // Numeric field: write number or clear
+      if (val !== null && val !== undefined && val !== '') {
+        range.setValue(Number(val));
+      } else {
+        range.setValue('');
+      }
+    }
+  }
+
+  SpreadsheetApp.flush();
 }
 
 /**
@@ -43,11 +153,10 @@ function initialSetup() {
 
   ui.alert(
     'Setup Complete',
-    'The Settings tab has been created with default values for all 6 SKUs.\n\n' +
-    'Detail tabs and the Summary tab have been generated.\n\n' +
-    'An onEdit trigger has been installed — any change to the Settings tab ' +
-    'will automatically recalculate all forecasts.\n\n' +
-    'Enter your actual inventory numbers in the Settings tab to begin forecasting.',
+    'Settings tab created with defaults for all 6 SKUs.\n' +
+    'Detail tabs and Summary tab generated.\n' +
+    'Auto-refresh trigger installed.\n\n' +
+    'Use "Inventory Forecast > Edit SKU Settings" to enter your data.',
     ui.ButtonSet.OK
   );
 }
@@ -108,20 +217,16 @@ function onEditTrigger(e) {
   // Guard: only recalculate if the edit happened on the Settings tab
   if (!e || !e.range) return;
 
-  // Use e.range.getSheet() which is authoritative for the edited cell,
-  // unlike e.source.getActiveSheet() which can be unreliable if the user
-  // switches tabs quickly after editing.
   var editedSheet = e.range.getSheet();
   if (editedSheet.getName() !== SETTINGS_TAB_NAME) return;
 
   // Only recalculate if the edit was in the values column (column B).
-  // Edits to column A (labels) should not trigger a recalculation.
   if (e.range.getColumn() !== SETTINGS_VALUE_COL) return;
 
   // Debounce: use a lock to prevent overlapping recalculations
   var lock = LockService.getScriptLock();
-  var acquired = lock.tryLock(2000); // wait up to 2 seconds
-  if (!acquired) return; // another recalc is already running
+  var acquired = lock.tryLock(2000);
+  if (!acquired) return;
 
   try {
     recalculateAll();
@@ -132,8 +237,6 @@ function onEditTrigger(e) {
 
 /**
  * Creates an installable onEdit trigger for the active spreadsheet.
- * Removes any existing triggers with the same handler name first to
- * avoid duplicates.
  */
 function installTrigger() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -146,7 +249,6 @@ function installTrigger() {
     }
   }
 
-  // Create new installable onEdit trigger
   ScriptApp.newTrigger('onEditTrigger')
     .forSpreadsheet(ss)
     .onEdit()
@@ -155,22 +257,15 @@ function installTrigger() {
 
 /**
  * Utility: Deletes all SKU detail tabs and the Summary tab.
- * Useful for a clean rebuild during development.
  */
 function deleteGeneratedTabs() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  // Delete SKU detail tabs
   for (var i = 0; i < SKUS.length; i++) {
     var sheet = ss.getSheetByName(SKUS[i].tab);
-    if (sheet) {
-      ss.deleteSheet(sheet);
-    }
+    if (sheet) ss.deleteSheet(sheet);
   }
 
-  // Delete Summary tab
   var summarySheet = ss.getSheetByName(SUMMARY_TAB_NAME);
-  if (summarySheet) {
-    ss.deleteSheet(summarySheet);
-  }
+  if (summarySheet) ss.deleteSheet(summarySheet);
 }

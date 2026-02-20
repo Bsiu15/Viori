@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Google Sans', Roboto, Arial, sans-serif;
+      font-size: 13px;
+      color: #202124;
+      background: #fff;
+      padding: 16px;
+    }
+    h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a73e8;
+      margin-bottom: 12px;
+    }
+    .sku-select {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 13px;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      background: #f8f9fa;
+      font-weight: 500;
+    }
+    .section {
+      margin-bottom: 14px;
+      border: 1px solid #e8eaed;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .section-header {
+      background: #e8f0fe;
+      padding: 8px 12px;
+      font-weight: 600;
+      font-size: 12px;
+      color: #1a73e8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .section-body { padding: 8px 12px; }
+    .field {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid #f1f3f4;
+    }
+    .field:last-child { border-bottom: none; }
+    .field label {
+      font-size: 12px;
+      color: #5f6368;
+      flex: 1;
+      padding-right: 8px;
+    }
+    .field input {
+      width: 120px;
+      padding: 6px 10px;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      font-size: 13px;
+      text-align: right;
+      background: #fff;
+    }
+    .field input:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 2px rgba(26,115,232,0.15);
+    }
+    .field input[type="date"] {
+      width: 140px;
+      text-align: left;
+    }
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid #e8eaed;
+    }
+    .btn {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-primary {
+      background: #1a73e8;
+      color: #fff;
+    }
+    .btn-primary:hover { background: #1557b0; }
+    .btn-secondary {
+      background: #f1f3f4;
+      color: #5f6368;
+    }
+    .btn-secondary:hover { background: #e8eaed; }
+    .btn-save-all {
+      background: #34a853;
+      color: #fff;
+    }
+    .btn-save-all:hover { background: #2d9249; }
+    .status {
+      text-align: center;
+      padding: 8px;
+      font-size: 12px;
+      color: #5f6368;
+      display: none;
+    }
+    .status.show { display: block; }
+    .status.success { color: #34a853; }
+    .status.error { color: #ea4335; }
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid #dadce0;
+      border-top-color: #1a73e8;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <h2>SKU Settings</h2>
+
+  <select id="skuSelect" class="sku-select" onchange="loadSku()"></select>
+
+  <div id="formContainer">
+
+    <!-- Inventory -->
+    <div class="section">
+      <div class="section-header">Starting Inventory</div>
+      <div class="section-body">
+        <div class="field">
+          <label>FBA available units</label>
+          <input type="number" id="FBA_AVAILABLE" value="0" min="0">
+        </div>
+        <div class="field">
+          <label>FBA in processing/receiving</label>
+          <input type="number" id="FBA_PROCESSING" value="0" min="0">
+        </div>
+        <div class="field">
+          <label>FBA check-in delay (days)</label>
+          <input type="number" id="FBA_CHECKIN_DELAY" value="7" min="0">
+        </div>
+        <div class="field">
+          <label>FBM on-hand units</label>
+          <input type="number" id="FBM_ONHAND" value="0" min="0">
+        </div>
+      </div>
+    </div>
+
+    <!-- Sales Velocity -->
+    <div class="section">
+      <div class="section-header">Sales Velocity</div>
+      <div class="section-body">
+        <div class="field">
+          <label>Daily velocity (units/day)</label>
+          <input type="number" id="DAILY_VELOCITY" value="0" min="0" step="0.1">
+        </div>
+        <div class="field">
+          <label>Override: start date</label>
+          <input type="date" id="VEL_OVERRIDE_START">
+        </div>
+        <div class="field">
+          <label>Override: end date</label>
+          <input type="date" id="VEL_OVERRIDE_END">
+        </div>
+        <div class="field">
+          <label>Override: units/day</label>
+          <input type="number" id="VEL_OVERRIDE_VALUE" min="0" step="0.1">
+        </div>
+      </div>
+    </div>
+
+    <!-- Conversion Rate -->
+    <div class="section">
+      <div class="section-header">Conversion Rate</div>
+      <div class="section-body">
+        <div class="field">
+          <label>Conversion rate (%)</label>
+          <input type="number" id="CONVERSION_RATE" value="100" min="0" max="100" step="0.1">
+        </div>
+        <div class="field">
+          <label>Override: start date</label>
+          <input type="date" id="CR_OVERRIDE_START">
+        </div>
+        <div class="field">
+          <label>Override: end date</label>
+          <input type="date" id="CR_OVERRIDE_END">
+        </div>
+        <div class="field">
+          <label>Override: value (%)</label>
+          <input type="number" id="CR_OVERRIDE_VALUE" min="0" max="100" step="0.1">
+        </div>
+      </div>
+    </div>
+
+    <!-- SPD Shipment -->
+    <div class="section">
+      <div class="section-header">SPD Shipment</div>
+      <div class="section-body">
+        <div class="field">
+          <label>Units</label>
+          <input type="number" id="SPD_UNITS" value="0" min="0">
+        </div>
+        <div class="field">
+          <label>Send date</label>
+          <input type="date" id="SPD_SEND_DATE">
+        </div>
+        <div class="field">
+          <label>Transit time (days)</label>
+          <input type="number" id="SPD_TRANSIT_DAYS" value="5" min="0">
+        </div>
+      </div>
+    </div>
+
+    <!-- LTL Shipment -->
+    <div class="section">
+      <div class="section-header">LTL Shipment</div>
+      <div class="section-body">
+        <div class="field">
+          <label>Units</label>
+          <input type="number" id="LTL_UNITS" value="0" min="0">
+        </div>
+        <div class="field">
+          <label>Send date</label>
+          <input type="date" id="LTL_SEND_DATE" value="2026-03-13">
+        </div>
+        <div class="field">
+          <label>Transit time (days)</label>
+          <input type="number" id="LTL_TRANSIT_DAYS" value="14" min="0">
+        </div>
+      </div>
+    </div>
+
+    <!-- DTC Bridge -->
+    <div class="section">
+      <div class="section-header">DTC Bridge</div>
+      <div class="section-body">
+        <div class="field">
+          <label>Units</label>
+          <input type="number" id="DTC_UNITS" value="0" min="0">
+        </div>
+        <div class="field">
+          <label>Start date</label>
+          <input type="date" id="DTC_START_DATE">
+        </div>
+        <div class="field">
+          <label>End date</label>
+          <input type="date" id="DTC_END_DATE">
+        </div>
+      </div>
+    </div>
+
+    <!-- Ad-hoc Shipment -->
+    <div class="section">
+      <div class="section-header">Ad-hoc Shipment</div>
+      <div class="section-body">
+        <div class="field">
+          <label>Units</label>
+          <input type="number" id="ADHOC_UNITS" value="0" min="0">
+        </div>
+        <div class="field">
+          <label>Send date</label>
+          <input type="date" id="ADHOC_SEND_DATE">
+        </div>
+        <div class="field">
+          <label>Transit time (days)</label>
+          <input type="number" id="ADHOC_TRANSIT_DAYS" value="5" min="0">
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" onclick="saveSku()">Save This SKU</button>
+    <button class="btn btn-save-all" onclick="saveAndRecalc()">Save + Recalculate</button>
+  </div>
+
+  <div id="status" class="status"></div>
+
+  <script>
+    // All field IDs that map to named range keys
+    var FIELD_IDS = [
+      'FBA_AVAILABLE', 'FBA_PROCESSING', 'FBA_CHECKIN_DELAY', 'FBM_ONHAND',
+      'DAILY_VELOCITY', 'VEL_OVERRIDE_START', 'VEL_OVERRIDE_END', 'VEL_OVERRIDE_VALUE',
+      'CONVERSION_RATE', 'CR_OVERRIDE_START', 'CR_OVERRIDE_END', 'CR_OVERRIDE_VALUE',
+      'SPD_UNITS', 'SPD_SEND_DATE', 'SPD_TRANSIT_DAYS',
+      'LTL_UNITS', 'LTL_SEND_DATE', 'LTL_TRANSIT_DAYS',
+      'DTC_UNITS', 'DTC_START_DATE', 'DTC_END_DATE',
+      'ADHOC_UNITS', 'ADHOC_SEND_DATE', 'ADHOC_TRANSIT_DAYS'
+    ];
+
+    // Date field IDs
+    var DATE_FIELDS = [
+      'VEL_OVERRIDE_START', 'VEL_OVERRIDE_END',
+      'CR_OVERRIDE_START', 'CR_OVERRIDE_END',
+      'SPD_SEND_DATE', 'LTL_SEND_DATE',
+      'DTC_START_DATE', 'DTC_END_DATE',
+      'ADHOC_SEND_DATE'
+    ];
+
+    function isDateField(id) {
+      return DATE_FIELDS.indexOf(id) > -1;
+    }
+
+    // Populate SKU dropdown on load
+    google.script.run.withSuccessHandler(function(skus) {
+      var sel = document.getElementById('skuSelect');
+      for (var i = 0; i < skus.length; i++) {
+        var opt = document.createElement('option');
+        opt.value = skus[i].id;
+        opt.textContent = skus[i].id + '  —  ' + skus[i].name;
+        sel.appendChild(opt);
+      }
+      loadSku();
+    }).getSkuList();
+
+    // Load values for the selected SKU
+    function loadSku() {
+      var skuId = document.getElementById('skuSelect').value;
+      showStatus('Loading...', '');
+
+      google.script.run.withSuccessHandler(function(values) {
+        for (var key in values) {
+          var el = document.getElementById(key);
+          if (!el) continue;
+
+          var val = values[key];
+          if (isDateField(key)) {
+            // Convert to yyyy-mm-dd for date input
+            if (val && val !== '') {
+              var d = new Date(val);
+              if (!isNaN(d.getTime())) {
+                var yyyy = d.getFullYear();
+                var mm = String(d.getMonth() + 1).padStart(2, '0');
+                var dd = String(d.getDate()).padStart(2, '0');
+                el.value = yyyy + '-' + mm + '-' + dd;
+              } else {
+                el.value = '';
+              }
+            } else {
+              el.value = '';
+            }
+          } else {
+            el.value = (val !== null && val !== undefined) ? val : '';
+          }
+        }
+        hideStatus();
+      }).withFailureHandler(function(err) {
+        showStatus('Error loading: ' + err.message, 'error');
+      }).getSkuSettingsForDialog(skuId);
+    }
+
+    // Save values for the selected SKU
+    function saveSku(callback) {
+      var skuId = document.getElementById('skuSelect').value;
+      var values = {};
+
+      for (var i = 0; i < FIELD_IDS.length; i++) {
+        var id = FIELD_IDS[i];
+        var el = document.getElementById(id);
+        if (!el) continue;
+
+        if (isDateField(id)) {
+          values[id] = el.value || null; // send yyyy-mm-dd string or null
+        } else {
+          values[id] = el.value !== '' ? Number(el.value) : null;
+        }
+      }
+
+      showStatus('<span class="spinner"></span> Saving...', '');
+
+      google.script.run.withSuccessHandler(function() {
+        showStatus('Saved successfully', 'success');
+        if (callback) callback();
+      }).withFailureHandler(function(err) {
+        showStatus('Error saving: ' + err.message, 'error');
+      }).saveSkuSettingsFromDialog(skuId, values);
+    }
+
+    // Save and recalculate all
+    function saveAndRecalc() {
+      saveSku(function() {
+        showStatus('<span class="spinner"></span> Recalculating all tabs...', '');
+        google.script.run.withSuccessHandler(function() {
+          showStatus('Saved and recalculated', 'success');
+        }).withFailureHandler(function(err) {
+          showStatus('Error: ' + err.message, 'error');
+        }).recalculateAll();
+      });
+    }
+
+    function showStatus(msg, type) {
+      var el = document.getElementById('status');
+      el.innerHTML = msg;
+      el.className = 'status show' + (type ? ' ' + type : '');
+    }
+    function hideStatus() {
+      document.getElementById('status').className = 'status';
+    }
+  </script>
+
+</body>
+</html>
