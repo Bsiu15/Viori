@@ -57,6 +57,28 @@ function readSkuSettings(skuId) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var p  = namedRangePrefix(skuId); // e.g. "SB_HW_100W_FBA"
 
+  // ── Read velocity overrides (up to 3) ──
+  var velOverrides = [];
+  for (var v = 1; v <= 3; v++) {
+    var vStart = readDate(ss, p + '__VEL_OVERRIDE_' + v + '_START');
+    var vEnd   = readDate(ss, p + '__VEL_OVERRIDE_' + v + '_END');
+    var vVal   = readNamedRange(ss, p + '__VEL_OVERRIDE_' + v + '_VALUE');
+    if (vStart && vEnd && vVal !== null) {
+      velOverrides.push({ start: vStart, end: vEnd, value: Number(vVal) || 0 });
+    }
+  }
+
+  // ── Read conversion rate overrides (up to 3) ──
+  var crOverrides = [];
+  for (var c = 1; c <= 3; c++) {
+    var cStart = readDate(ss, p + '__CR_OVERRIDE_' + c + '_START');
+    var cEnd   = readDate(ss, p + '__CR_OVERRIDE_' + c + '_END');
+    var cVal   = readNamedRange(ss, p + '__CR_OVERRIDE_' + c + '_VALUE');
+    if (cStart && cEnd && cVal !== null) {
+      crOverrides.push({ start: cStart, end: cEnd, value: Number(cVal) || 0 });
+    }
+  }
+
   return {
     skuId:             skuId,
 
@@ -65,18 +87,17 @@ function readSkuSettings(skuId) {
     fbaProcessing:     readNum(ss,  p + '__FBA_PROCESSING'),
     fbaCheckinDelay:   readNum(ss,  p + '__FBA_CHECKIN_DELAY'),
     fbmOnHand:         readNum(ss,  p + '__FBM_ONHAND'),
+    reserved:          readNum(ss,  p + '__RESERVED'),
+    researching:       readNum(ss,  p + '__RESEARCHING'),
+    unfulfillable:     readNum(ss,  p + '__UNFULFILLABLE'),
 
     // ── Sales velocity ──
     dailyVelocity:     readNum(ss,  p + '__DAILY_VELOCITY'),
-    velOverrideStart:  readDate(ss, p + '__VEL_OVERRIDE_START'),
-    velOverrideEnd:    readDate(ss, p + '__VEL_OVERRIDE_END'),
-    velOverrideValue:  readNamedRange(ss, p + '__VEL_OVERRIDE_VALUE'), // null if not set, number if set (including 0)
+    velOverrides:      velOverrides,
 
     // ── Conversion rate ──
     conversionRate:    readNum(ss,  p + '__CONVERSION_RATE'),
-    crOverrideStart:   readDate(ss, p + '__CR_OVERRIDE_START'),
-    crOverrideEnd:     readDate(ss, p + '__CR_OVERRIDE_END'),
-    crOverrideValue:   readNamedRange(ss, p + '__CR_OVERRIDE_VALUE'), // null if not set, number if set (including 0)
+    crOverrides:       crOverrides,
 
     // ── SPD shipment ──
     spdUnits:          readNum(ss,  p + '__SPD_UNITS'),

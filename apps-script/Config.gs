@@ -70,33 +70,48 @@ var SUMMARY_TAB_NAME   = 'Summary';
  * Number of input rows per SKU block in the Settings tab.
  * Each SKU block has the following rows:
  *  1  SKU header (merged, colored)
- *  2  Starting FBA available units
- *  3  Starting FBA in processing/receiving units
+ *  2  FBA (available units)
+ *  3  Inbound (processing/receiving units)
  *  4  FBA check-in and processing delay (days)
- *  5  Starting FBM on-hand units
- *  6  Daily sales velocity (units/day)
- *  7  Velocity override: start date
- *  8  Velocity override: end date
- *  9  Velocity override: units/day
- * 10  Conversion rate (%)
- * 11  Conversion rate override: start date
- * 12  Conversion rate override: end date
- * 13  Conversion rate override: value (%)
- * 14  SPD shipment: units
- * 15  SPD shipment: send date
- * 16  SPD shipment: transit time (days)
- * 17  LTL shipment: units
- * 18  LTL shipment: send date
- * 19  LTL shipment: transit time (days)
- * 20  DTC bridge: units
- * 21  DTC bridge: start date
- * 22  DTC bridge: end date
- * 23  Ad-hoc shipment: units
- * 24  Ad-hoc shipment: send date
- * 25  Ad-hoc shipment: transit time (days)
- * 26  (blank spacer row)
+ *  5  On-hand (FBM on-hand units)
+ *  6  Reserved
+ *  7  Researching
+ *  8  Unfulfillable
+ *  9  Daily sales velocity (units/day)
+ * 10  Velocity override 1: start date
+ * 11  Velocity override 1: end date
+ * 12  Velocity override 1: units/day
+ * 13  Velocity override 2: start date
+ * 14  Velocity override 2: end date
+ * 15  Velocity override 2: units/day
+ * 16  Velocity override 3: start date
+ * 17  Velocity override 3: end date
+ * 18  Velocity override 3: units/day
+ * 19  Conversion rate (%)
+ * 20  Conversion rate override 1: start date
+ * 21  Conversion rate override 1: end date
+ * 22  Conversion rate override 1: value (%)
+ * 23  Conversion rate override 2: start date
+ * 24  Conversion rate override 2: end date
+ * 25  Conversion rate override 2: value (%)
+ * 26  Conversion rate override 3: start date
+ * 27  Conversion rate override 3: end date
+ * 28  Conversion rate override 3: value (%)
+ * 29  SPD shipment: units
+ * 30  SPD shipment: send date
+ * 31  SPD shipment: transit time (days)
+ * 32  LTL shipment: units
+ * 33  LTL shipment: send date
+ * 34  LTL shipment: transit time (days)
+ * 35  DTC bridge: units
+ * 36  DTC bridge: start date
+ * 37  DTC bridge: end date
+ * 38  Ad-hoc shipment: units
+ * 39  Ad-hoc shipment: send date
+ * 40  Ad-hoc shipment: transit time (days)
+ * 41  (blank spacer row)
  */
-var ROWS_PER_SKU_BLOCK = 26;
+var ROWS_PER_SKU_BLOCK = 41;
 
 /** Column A = labels, Column B = values in the Settings tab */
 var SETTINGS_LABEL_COL = 1;

@@ -131,17 +131,23 @@ function runWaterfall(cfg) {
     }
 
     // ── Step 3: Determine today's velocity and conversion rate ──
+    // Check all velocity overrides (first matching override wins)
     var velocity = cfg.dailyVelocity;
-    if (cfg.velOverrideStart && cfg.velOverrideEnd && cfg.velOverrideValue !== null) {
-      if (dateInRange(today, cfg.velOverrideStart, cfg.velOverrideEnd)) {
-        velocity = Number(cfg.velOverrideValue) || 0;
+    for (var vo = 0; vo < cfg.velOverrides.length; vo++) {
+      var velOv = cfg.velOverrides[vo];
+      if (dateInRange(today, velOv.start, velOv.end)) {
+        velocity = velOv.value;
+        break;
       }
     }
 
+    // Check all conversion rate overrides (first matching override wins)
     var convRate = cfg.conversionRate;
-    if (cfg.crOverrideStart && cfg.crOverrideEnd && cfg.crOverrideValue !== null) {
-      if (dateInRange(today, cfg.crOverrideStart, cfg.crOverrideEnd)) {
-        convRate = Number(cfg.crOverrideValue) || 0;
+    for (var co = 0; co < cfg.crOverrides.length; co++) {
+      var crOv = cfg.crOverrides[co];
+      if (dateInRange(today, crOv.start, crOv.end)) {
+        convRate = crOv.value;
+        break;
       }
     }
 

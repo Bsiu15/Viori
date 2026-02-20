@@ -128,6 +128,20 @@
       margin-right: 6px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .override-group {
+      margin-top: 6px;
+      padding: 6px 8px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      border: 1px solid #e8eaed;
+    }
+    .override-group + .override-group { margin-top: 4px; }
+    .override-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #1a73e8;
+      margin-bottom: 2px;
+    }
   </style>
 </head>
 <body>
@@ -143,11 +157,11 @@
       <div class="section-header">Starting Inventory</div>
       <div class="section-body">
         <div class="field">
-          <label>FBA available units</label>
+          <label>FBA</label>
           <input type="number" id="FBA_AVAILABLE" value="0" min="0">
         </div>
         <div class="field">
-          <label>FBA in processing/receiving</label>
+          <label>Inbound</label>
           <input type="number" id="FBA_PROCESSING" value="0" min="0">
         </div>
         <div class="field">
@@ -155,8 +169,20 @@
           <input type="number" id="FBA_CHECKIN_DELAY" value="7" min="0">
         </div>
         <div class="field">
-          <label>FBM on-hand units</label>
+          <label>On-hand</label>
           <input type="number" id="FBM_ONHAND" value="0" min="0">
+        </div>
+        <div class="field">
+          <label>Reserved</label>
+          <input type="number" id="RESERVED" value="0" min="0">
+        </div>
+        <div class="field">
+          <label>Researching</label>
+          <input type="number" id="RESEARCHING" value="0" min="0">
+        </div>
+        <div class="field">
+          <label>Unfulfillable</label>
+          <input type="number" id="UNFULFILLABLE" value="0" min="0">
         </div>
       </div>
     </div>
@@ -169,17 +195,50 @@
           <label>Daily velocity (units/day)</label>
           <input type="number" id="DAILY_VELOCITY" value="0" min="0" step="0.1">
         </div>
-        <div class="field">
-          <label>Override: start date</label>
-          <input type="date" id="VEL_OVERRIDE_START">
+        <div class="override-group">
+          <div class="override-label">Override 1</div>
+          <div class="field">
+            <label>Start date</label>
+            <input type="date" id="VEL_OVERRIDE_1_START">
+          </div>
+          <div class="field">
+            <label>End date</label>
+            <input type="date" id="VEL_OVERRIDE_1_END">
+          </div>
+          <div class="field">
+            <label>Units/day</label>
+            <input type="number" id="VEL_OVERRIDE_1_VALUE" min="0" step="0.1">
+          </div>
         </div>
-        <div class="field">
-          <label>Override: end date</label>
-          <input type="date" id="VEL_OVERRIDE_END">
+        <div class="override-group">
+          <div class="override-label">Override 2</div>
+          <div class="field">
+            <label>Start date</label>
+            <input type="date" id="VEL_OVERRIDE_2_START">
+          </div>
+          <div class="field">
+            <label>End date</label>
+            <input type="date" id="VEL_OVERRIDE_2_END">
+          </div>
+          <div class="field">
+            <label>Units/day</label>
+            <input type="number" id="VEL_OVERRIDE_2_VALUE" min="0" step="0.1">
+          </div>
         </div>
-        <div class="field">
-          <label>Override: units/day</label>
-          <input type="number" id="VEL_OVERRIDE_VALUE" min="0" step="0.1">
+        <div class="override-group">
+          <div class="override-label">Override 3</div>
+          <div class="field">
+            <label>Start date</label>
+            <input type="date" id="VEL_OVERRIDE_3_START">
+          </div>
+          <div class="field">
+            <label>End date</label>
+            <input type="date" id="VEL_OVERRIDE_3_END">
+          </div>
+          <div class="field">
+            <label>Units/day</label>
+            <input type="number" id="VEL_OVERRIDE_3_VALUE" min="0" step="0.1">
+          </div>
         </div>
       </div>
     </div>
@@ -192,17 +251,50 @@
           <label>Conversion rate (%)</label>
           <input type="number" id="CONVERSION_RATE" value="100" min="0" max="100" step="0.1">
         </div>
-        <div class="field">
-          <label>Override: start date</label>
-          <input type="date" id="CR_OVERRIDE_START">
+        <div class="override-group">
+          <div class="override-label">Override 1</div>
+          <div class="field">
+            <label>Start date</label>
+            <input type="date" id="CR_OVERRIDE_1_START">
+          </div>
+          <div class="field">
+            <label>End date</label>
+            <input type="date" id="CR_OVERRIDE_1_END">
+          </div>
+          <div class="field">
+            <label>Value (%)</label>
+            <input type="number" id="CR_OVERRIDE_1_VALUE" min="0" max="200" step="0.1">
+          </div>
         </div>
-        <div class="field">
-          <label>Override: end date</label>
-          <input type="date" id="CR_OVERRIDE_END">
+        <div class="override-group">
+          <div class="override-label">Override 2</div>
+          <div class="field">
+            <label>Start date</label>
+            <input type="date" id="CR_OVERRIDE_2_START">
+          </div>
+          <div class="field">
+            <label>End date</label>
+            <input type="date" id="CR_OVERRIDE_2_END">
+          </div>
+          <div class="field">
+            <label>Value (%)</label>
+            <input type="number" id="CR_OVERRIDE_2_VALUE" min="0" max="200" step="0.1">
+          </div>
         </div>
-        <div class="field">
-          <label>Override: value (%)</label>
-          <input type="number" id="CR_OVERRIDE_VALUE" min="0" max="100" step="0.1">
+        <div class="override-group">
+          <div class="override-label">Override 3</div>
+          <div class="field">
+            <label>Start date</label>
+            <input type="date" id="CR_OVERRIDE_3_START">
+          </div>
+          <div class="field">
+            <label>End date</label>
+            <input type="date" id="CR_OVERRIDE_3_END">
+          </div>
+          <div class="field">
+            <label>Value (%)</label>
+            <input type="number" id="CR_OVERRIDE_3_VALUE" min="0" max="200" step="0.1">
+          </div>
         </div>
       </div>
     </div>
@@ -296,8 +388,15 @@
     // All field IDs that map to named range keys
     var FIELD_IDS = [
       'FBA_AVAILABLE', 'FBA_PROCESSING', 'FBA_CHECKIN_DELAY', 'FBM_ONHAND',
-      'DAILY_VELOCITY', 'VEL_OVERRIDE_START', 'VEL_OVERRIDE_END', 'VEL_OVERRIDE_VALUE',
-      'CONVERSION_RATE', 'CR_OVERRIDE_START', 'CR_OVERRIDE_END', 'CR_OVERRIDE_VALUE',
+      'RESERVED', 'RESEARCHING', 'UNFULFILLABLE',
+      'DAILY_VELOCITY',
+      'VEL_OVERRIDE_1_START', 'VEL_OVERRIDE_1_END', 'VEL_OVERRIDE_1_VALUE',
+      'VEL_OVERRIDE_2_START', 'VEL_OVERRIDE_2_END', 'VEL_OVERRIDE_2_VALUE',
+      'VEL_OVERRIDE_3_START', 'VEL_OVERRIDE_3_END', 'VEL_OVERRIDE_3_VALUE',
+      'CONVERSION_RATE',
+      'CR_OVERRIDE_1_START', 'CR_OVERRIDE_1_END', 'CR_OVERRIDE_1_VALUE',
+      'CR_OVERRIDE_2_START', 'CR_OVERRIDE_2_END', 'CR_OVERRIDE_2_VALUE',
+      'CR_OVERRIDE_3_START', 'CR_OVERRIDE_3_END', 'CR_OVERRIDE_3_VALUE',
       'SPD_UNITS', 'SPD_SEND_DATE', 'SPD_TRANSIT_DAYS',
       'LTL_UNITS', 'LTL_SEND_DATE', 'LTL_TRANSIT_DAYS',
       'DTC_UNITS', 'DTC_START_DATE', 'DTC_END_DATE',
@@ -306,8 +405,12 @@
 
     // Date field IDs
     var DATE_FIELDS = [
-      'VEL_OVERRIDE_START', 'VEL_OVERRIDE_END',
-      'CR_OVERRIDE_START', 'CR_OVERRIDE_END',
+      'VEL_OVERRIDE_1_START', 'VEL_OVERRIDE_1_END',
+      'VEL_OVERRIDE_2_START', 'VEL_OVERRIDE_2_END',
+      'VEL_OVERRIDE_3_START', 'VEL_OVERRIDE_3_END',
+      'CR_OVERRIDE_1_START', 'CR_OVERRIDE_1_END',
+      'CR_OVERRIDE_2_START', 'CR_OVERRIDE_2_END',
+      'CR_OVERRIDE_3_START', 'CR_OVERRIDE_3_END',
       'SPD_SEND_DATE', 'LTL_SEND_DATE',
       'DTC_START_DATE', 'DTC_END_DATE',
       'ADHOC_SEND_DATE'
