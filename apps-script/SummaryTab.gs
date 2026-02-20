@@ -502,8 +502,7 @@ function buildSummaryTab(allResults) {
 
       // Past losses: from user-entered pastOosDays
       var pastDays = (ipCfg && ipCfg.pastOosDays) ? ipCfg.pastOosDays : 0;
-      var pastEffVel = (ipCfg && ipCfg.dailyVelocity && ipCfg.conversionRate)
-                       ? ipCfg.dailyVelocity * (ipCfg.conversionRate / 100) : 0;
+      var pastEffVel = (ipCfg && ipCfg.dailyVelocity) ? ipCfg.dailyVelocity : 0;
       var pastRev = pastDays * pastEffVel * ipPrice;
       var pastDppVal = pastRev * (ipDpp / 100);
 

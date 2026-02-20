@@ -363,8 +363,7 @@ function buildDetailTab(skuDef, data, cfg) {
 
     // ── Already Lost row (from user-entered past OOS days) ──
     var pastOosDays = (cfg && cfg.pastOosDays) ? cfg.pastOosDays : 0;
-    var pastEffVel  = (cfg && cfg.dailyVelocity && cfg.conversionRate)
-                      ? cfg.dailyVelocity * (cfg.conversionRate / 100) : 0;
+    var pastEffVel  = (cfg && cfg.dailyVelocity) ? cfg.dailyVelocity : 0;
     var pastLostRev = pastOosDays * pastEffVel * sellingPrice;
     var pastLostDpp = pastLostRev * (dppMargin / 100);
 
