@@ -93,11 +93,30 @@ function namedRangePrefix(skuId) {
 
 /**
  * Builds (or rebuilds) the Settings tab from scratch.
+ * Preserves existing named range values so data isn't lost during rebuild.
  * Clears existing content, writes all SKU blocks, applies formatting,
  * and creates named ranges for every input cell.
  */
 function buildSettingsTab() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var skus = getSkus();
+
+  // ── Preserve existing values before clearing ──
+  var savedValues = {};
+  for (var sv = 0; sv < skus.length; sv++) {
+    var svPrefix = namedRangePrefix(skus[sv].id);
+    savedValues[svPrefix] = {};
+    for (var sk = 0; sk < SKU_INPUT_ROWS.length; sk++) {
+      var svKey = SKU_INPUT_ROWS[sk].key;
+      var svRange = ss.getRangeByName(svPrefix + '__' + svKey);
+      if (svRange) {
+        var svVal = svRange.getValue();
+        if (svVal !== '' && svVal !== undefined && svVal !== null) {
+          savedValues[svPrefix][svKey] = svVal;
+        }
+      }
+    }
+  }
 
   // Get or create the Settings sheet
   var sheet = ss.getSheetByName(SETTINGS_TAB_NAME);
@@ -108,12 +127,11 @@ function buildSettingsTab() {
   sheet.clearFormats();
 
   // Remove existing named ranges that belong to our SKU inputs
-  var skusForCleanup = getSkus();
   var existingRanges = ss.getNamedRanges();
   for (var r = 0; r < existingRanges.length; r++) {
     var rName = existingRanges[r].getName();
-    for (var s = 0; s < skusForCleanup.length; s++) {
-      if (rName.indexOf(namedRangePrefix(skusForCleanup[s].id)) === 0) {
+    for (var s = 0; s < skus.length; s++) {
+      if (rName.indexOf(namedRangePrefix(skus[s].id)) === 0) {
         existingRanges[r].remove();
         break;
       }
@@ -135,10 +153,10 @@ function buildSettingsTab() {
   row += 2; // blank spacer
 
   // ── Build each SKU block ──
-  var skus = getSkus();
   for (var i = 0; i < skus.length; i++) {
     var sku = skus[i];
     var prefix = namedRangePrefix(sku.id);
+    var skuSaved = savedValues[prefix] || {};
 
     // SKU header row
     sheet.getRange(row, 1, 1, 2).merge()
@@ -158,9 +176,11 @@ function buildSettingsTab() {
            .setValue(input.label)
            .setFontSize(10);
 
-      // Default value in column B
+      // Restore saved value if it exists, otherwise use default
       var valueCell = sheet.getRange(row, SETTINGS_VALUE_COL);
-      if (input.defaultVal !== '' && input.defaultVal !== null) {
+      if (skuSaved.hasOwnProperty(input.key)) {
+        valueCell.setValue(skuSaved[input.key]);
+      } else if (input.defaultVal !== '' && input.defaultVal !== null) {
         valueCell.setValue(input.defaultVal);
       }
 
