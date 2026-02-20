@@ -106,14 +106,21 @@ function recalculateAll() {
  */
 function onEditTrigger(e) {
   // Guard: only recalculate if the edit happened on the Settings tab
-  if (!e || !e.source) return;
+  if (!e || !e.range) return;
 
-  var editedSheet = e.source.getActiveSheet();
+  // Use e.range.getSheet() which is authoritative for the edited cell,
+  // unlike e.source.getActiveSheet() which can be unreliable if the user
+  // switches tabs quickly after editing.
+  var editedSheet = e.range.getSheet();
   if (editedSheet.getName() !== SETTINGS_TAB_NAME) return;
+
+  // Only recalculate if the edit was in the values column (column B).
+  // Edits to column A (labels) should not trigger a recalculation.
+  if (e.range.getColumn() !== SETTINGS_VALUE_COL) return;
 
   // Debounce: use a lock to prevent overlapping recalculations
   var lock = LockService.getScriptLock();
-  var acquired = lock.tryLock(1000); // wait up to 1 second
+  var acquired = lock.tryLock(2000); // wait up to 2 seconds
   if (!acquired) return; // another recalc is already running
 
   try {

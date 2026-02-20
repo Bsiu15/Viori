@@ -163,14 +163,12 @@ function runWaterfall(cfg) {
       // Priority 1: FBA available
       channel = 'FBA';
       unitsSold = Math.min(effectiveVelocity, fbaAvail);
-      fbaAvail -= unitsSold;
-      if (fbaAvail < 0) fbaAvail = 0;
+      fbaAvail = roundInv(fbaAvail - unitsSold);
     } else if (fbmOnHand > 0) {
       // Priority 2: FBM on-hand (activates the moment FBA hits zero)
       channel = 'FBM';
       unitsSold = Math.min(effectiveVelocity, fbmOnHand);
-      fbmOnHand -= unitsSold;
-      if (fbmOnHand < 0) fbmOnHand = 0;
+      fbmOnHand = roundInv(fbmOnHand - unitsSold);
       if (dayStartFbaAvail > 0) {
         events.push('FBA stock depleted — switched to FBM');
       }
@@ -178,8 +176,7 @@ function runWaterfall(cfg) {
       // Priority 3: DTC bridge (manual override within date range)
       channel = 'DTC';
       unitsSold = Math.min(effectiveVelocity, dtcRemaining);
-      dtcRemaining -= unitsSold;
-      if (dtcRemaining < 0) dtcRemaining = 0;
+      dtcRemaining = roundInv(dtcRemaining - unitsSold);
       events.push('Fulfilling from DTC bridge');
     } else {
       // Priority 4: TRUE OOS
@@ -237,6 +234,18 @@ function runWaterfall(cfg) {
 function computeArrivalDate(sendDate, transitDays) {
   if (!sendDate) return null;
   return addDays(sendDate, transitDays);
+}
+
+/**
+ * Rounds an inventory balance to 2 decimal places and clamps to zero.
+ * Prevents floating-point drift from accumulating over 71 days of
+ * fractional subtraction (e.g., velocity 7 * conversion 33% = 2.31/day).
+ * @param {number} val
+ * @return {number}
+ */
+function roundInv(val) {
+  var rounded = Math.round(val * 100) / 100;
+  return rounded < 0 ? 0 : rounded;
 }
 
 /**
