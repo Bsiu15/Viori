@@ -1,176 +1,21 @@
 /**
  * DetailTab.gs
  * ---------------------------------------------------------------------------
- * Renders one SKU detail tab showing the full day-by-day waterfall breakdown.
- * Columns:
- *   A  Date
- *   B  FBA Available (Start)
- *   C  FBA Processing (Start)
- *   D  FBM On-Hand (Start)
- *   E  DTC Remaining (Start)
- *   F  Units Sold
- *   G  Sold From (channel)
- *   H  Conversion Rate
- *   I  Effective Velocity
- *   J  FBA Available (End)
- *   K  FBA Processing (End)
- *   L  FBM On-Hand (End)
- *   M  DTC Remaining (End)
- *   N  Channel
- *   O  Events
+ * Renders one SKU detail tab as a monthly calendar grid view — similar to
+ * a phone calendar app. Each month (Feb, Mar, Apr 2026) is displayed as
+ * a 7-column grid (Sun–Sat). Each day cell is color-coded by fulfillment
+ * channel and shows key inventory data at a glance.
+ *
+ * Day cell contents:
+ *   Line 1: Day number
+ *   Line 2: Channel (FBA / FBM / DTC / OOS)
+ *   Line 3: Sold X units
+ *   Line 4: End FBA: X | FBM: X
+ *   Line 5: Event (if any)
  * ---------------------------------------------------------------------------
  */
 
-/** Column headers for SKU detail tabs */
-var DETAIL_HEADERS = [
-  'Date',
-  'FBA Avail (Start)',
-  'FBA Processing (Start)',
-  'FBM On-Hand (Start)',
-  'DTC Remaining (Start)',
-  'Units Sold',
-  'Sold From',
-  'Conv. Rate (%)',
-  'Eff. Velocity',
-  'FBA Avail (End)',
-  'FBA Processing (End)',
-  'FBM On-Hand (End)',
-  'DTC Remaining (End)',
-  'Channel',
-  'Events'
-];
-
-/**
- * Builds (or rebuilds) a single SKU detail tab.
- *
- * @param {Object} skuDef      SKU definition from SKUS array (has .id, .name, .tab)
- * @param {DaySnapshot[]} data Waterfall results from runWaterfall()
- */
-function buildDetailTab(skuDef, data) {
-  var ss    = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(skuDef.tab);
-
-  if (!sheet) {
-    sheet = ss.insertSheet(skuDef.tab);
-  }
-  sheet.clear();
-  sheet.clearFormats();
-
-  var numCols = DETAIL_HEADERS.length;
-  var numRows = data.length;
-
-  // ── Title row ──
-  sheet.getRange(1, 1, 1, numCols).merge()
-       .setValue(skuDef.id + '  —  ' + skuDef.name + '  —  Day-by-Day Waterfall')
-       .setFontSize(12)
-       .setFontWeight('bold')
-       .setBackground(COLORS.HEADER)
-       .setFontColor(COLORS.HEADER_FG)
-       .setHorizontalAlignment('left');
-
-  // ── Header row ──
-  var headerRange = sheet.getRange(2, 1, 1, numCols);
-  headerRange.setValues([DETAIL_HEADERS])
-             .setFontWeight('bold')
-             .setBackground('#E2EFDA')
-             .setBorder(true, true, true, true, true, true)
-             .setHorizontalAlignment('center')
-             .setWrap(true);
-
-  // ── Data rows ──
-  var output     = [];
-  var bgColors   = [];
-  var fgColors   = [];
-
-  for (var i = 0; i < numRows; i++) {
-    var snap = data[i];
-    var row  = [
-      snap.date,
-      snap.fbaAvailableStart,
-      snap.fbaProcessingStart,
-      snap.fbmOnHandStart,
-      snap.dtcStart,
-      Math.round(snap.unitsSold * 100) / 100,
-      snap.soldFrom,
-      snap.conversionRate,
-      Math.round(snap.effectiveVelocity * 100) / 100,
-      snap.fbaAvailableEnd,
-      snap.fbaProcessingEnd,
-      snap.fbmOnHandEnd,
-      snap.dtcEnd,
-      snap.channel,
-      snap.events.join('; ')
-    ];
-    output.push(row);
-
-    // ── Row background color based on channel ──
-    var bg = getChannelColor(snap.channel);
-    // Check if a shipment arrived today (blue highlight for the channel column)
-    var hasArrival = false;
-    for (var e = 0; e < snap.events.length; e++) {
-      if (snap.events[e].indexOf('arrived') > -1) {
-        hasArrival = true;
-        break;
-      }
-    }
-
-    var rowBg = [];
-    var rowFg = [];
-    for (var c = 0; c < numCols; c++) {
-      rowBg.push(bg);
-      rowFg.push('#000000');
-    }
-
-    // Override processing columns with gray if FBA processing > 0
-    if (snap.fbaProcessingStart > 0 || snap.fbaProcessingEnd > 0) {
-      rowBg[2]  = COLORS.GRAY;  // FBA Processing (Start)
-      rowBg[10] = COLORS.GRAY;  // FBA Processing (End)
-    }
-
-    // Override events column with blue if shipment arrived
-    if (hasArrival) {
-      rowBg[14] = COLORS.PROCESSING; // Events column
-    }
-
-    bgColors.push(rowBg);
-    fgColors.push(rowFg);
-  }
-
-  // Write data in one batch
-  var dataRange = sheet.getRange(3, 1, numRows, numCols);
-  dataRange.setValues(output);
-  dataRange.setBackgrounds(bgColors);
-  dataRange.setFontColors(fgColors);
-  dataRange.setBorder(true, true, true, true, true, true, '#D9D9D9', SpreadsheetApp.BorderStyle.SOLID);
-
-  // ── Formatting ──
-  // Date column
-  sheet.getRange(3, 1, numRows, 1).setNumberFormat('m/d/yyyy');
-  // Number columns
-  for (var nc = 2; nc <= 6; nc++) {
-    sheet.getRange(3, nc, numRows, 1).setNumberFormat('#,##0.00');
-  }
-  sheet.getRange(3, 8, numRows, 1).setNumberFormat('#,##0.0"%"');
-  sheet.getRange(3, 9, numRows, 1).setNumberFormat('#,##0.00');
-  for (var nc2 = 10; nc2 <= 13; nc2++) {
-    sheet.getRange(3, nc2, numRows, 1).setNumberFormat('#,##0.00');
-  }
-
-  // ── Column widths ──
-  sheet.setColumnWidth(1, 100);  // Date
-  for (var w = 2; w <= 13; w++) {
-    sheet.setColumnWidth(w, 110);
-  }
-  sheet.setColumnWidth(14, 90);  // Channel
-  sheet.setColumnWidth(15, 400); // Events
-
-  // ── Freeze headers ──
-  sheet.setFrozenRows(2);
-  sheet.setFrozenColumns(1);
-
-  // ── Alternating row borders for readability ──
-  sheet.getRange(2, 1, numRows + 1, numCols).setVerticalAlignment('middle');
-}
+var DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /**
  * Returns the background color hex for a given fulfillment channel.
@@ -185,4 +30,232 @@ function getChannelColor(channel) {
     case 'OOS':  return COLORS.OOS;
     default:     return COLORS.WHITE;
   }
+}
+
+/**
+ * Builds a lookup map from date string to snapshot for fast access.
+ * @param {DaySnapshot[]} data
+ * @return {Object} map of "YYYY-M-D" -> DaySnapshot
+ */
+function buildSnapshotMap(data) {
+  var map = {};
+  for (var i = 0; i < data.length; i++) {
+    var d = data[i].date;
+    var key = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+    map[key] = data[i];
+  }
+  return map;
+}
+
+/**
+ * Formats a number compactly: shows integer if whole, one decimal otherwise.
+ * @param {number} n
+ * @return {string}
+ */
+function fmtNum(n) {
+  if (n === Math.floor(n)) return String(Math.round(n));
+  return (Math.round(n * 10) / 10).toString();
+}
+
+/**
+ * Builds (or rebuilds) a single SKU detail tab as a calendar grid.
+ *
+ * @param {Object} skuDef      SKU definition from SKUS array
+ * @param {DaySnapshot[]} data Waterfall results from runWaterfall()
+ */
+function buildDetailTab(skuDef, data) {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(skuDef.tab);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(skuDef.tab);
+  }
+  sheet.clear();
+  sheet.clearFormats();
+
+  // Build snapshot lookup
+  var snapMap = buildSnapshotMap(data);
+
+  // Determine which months to render
+  // Forecast: Feb 19 – Apr 30, 2026
+  var months = [
+    { year: 2026, month: 1, name: 'February 2026' },  // month is 0-indexed
+    { year: 2026, month: 2, name: 'March 2026' },
+    { year: 2026, month: 3, name: 'April 2026' }
+  ];
+
+  var row = 1;
+  var numCols = 7; // Sun–Sat
+
+  // ── Title ──
+  sheet.getRange(row, 1, 1, numCols).merge()
+       .setValue(skuDef.id + '  —  ' + skuDef.name)
+       .setFontSize(13)
+       .setFontWeight('bold')
+       .setBackground(COLORS.HEADER)
+       .setFontColor(COLORS.HEADER_FG)
+       .setHorizontalAlignment('left');
+  row += 1;
+
+  // ── Legend row ──
+  var legendItems = [
+    { label: 'FBA', color: COLORS.FBA },
+    { label: 'FBM', color: COLORS.FBM },
+    { label: 'DTC', color: COLORS.DTC },
+    { label: 'OOS', color: COLORS.OOS },
+    { label: 'ARRIVING', color: COLORS.PROCESSING },
+    { label: 'PROCESSING', color: COLORS.GRAY }
+  ];
+  for (var li = 0; li < legendItems.length; li++) {
+    sheet.getRange(row, li + 1)
+         .setValue(legendItems[li].label)
+         .setBackground(legendItems[li].color)
+         .setHorizontalAlignment('center')
+         .setFontSize(8)
+         .setFontWeight('bold')
+         .setBorder(true, true, true, true, false, false);
+  }
+  // Fill remaining cell in 7-col row
+  sheet.getRange(row, 7)
+       .setBackground(COLORS.WHITE)
+       .setBorder(true, true, true, true, false, false);
+  row += 2;
+
+  // ── Column widths ──
+  for (var cw = 1; cw <= numCols; cw++) {
+    sheet.setColumnWidth(cw, 145);
+  }
+
+  // ── Render each month ──
+  for (var mi = 0; mi < months.length; mi++) {
+    var mo = months[mi];
+
+    // Month header
+    sheet.getRange(row, 1, 1, numCols).merge()
+         .setValue(mo.name)
+         .setFontSize(12)
+         .setFontWeight('bold')
+         .setBackground('#D6E4F0')
+         .setHorizontalAlignment('center')
+         .setBorder(true, true, true, true, false, false);
+    row += 1;
+
+    // Day-of-week header
+    for (var dh = 0; dh < numCols; dh++) {
+      sheet.getRange(row, dh + 1)
+           .setValue(DAY_NAMES[dh])
+           .setFontWeight('bold')
+           .setFontSize(9)
+           .setBackground('#E2EFDA')
+           .setHorizontalAlignment('center')
+           .setBorder(true, true, true, true, false, false);
+    }
+    row += 1;
+
+    // Determine calendar grid for this month
+    var firstOfMonth = new Date(mo.year, mo.month, 1);
+    var daysInMonth  = new Date(mo.year, mo.month + 1, 0).getDate();
+    var startDow     = firstOfMonth.getDay(); // 0=Sun
+
+    var day = 1;
+    var weekRow = row;
+
+    // Fill weeks
+    while (day <= daysInMonth) {
+      var cellValues = [];
+      var cellBgs    = [];
+
+      for (var col = 0; col < numCols; col++) {
+        if ((weekRow === row && col < startDow) || day > daysInMonth) {
+          // Empty cell (before first day or after last day of month)
+          cellValues.push('');
+          cellBgs.push('#F5F5F5');
+        } else {
+          var cellDate = new Date(mo.year, mo.month, day);
+          var key = mo.year + '-' + mo.month + '-' + day;
+          var snap = snapMap[key];
+
+          if (snap) {
+            // Build cell content
+            var lines = [];
+            lines.push(String(day));
+            lines.push(snap.channel);
+            lines.push('Sold: ' + fmtNum(snap.unitsSold));
+
+            // Show ending inventory for active buckets
+            var invParts = [];
+            if (snap.fbaAvailableEnd > 0 || snap.channel === 'FBA') {
+              invParts.push('FBA: ' + fmtNum(snap.fbaAvailableEnd));
+            }
+            if (snap.fbmOnHandEnd > 0 || snap.channel === 'FBM') {
+              invParts.push('FBM: ' + fmtNum(snap.fbmOnHandEnd));
+            }
+            if (snap.dtcEnd > 0 || snap.channel === 'DTC') {
+              invParts.push('DTC: ' + fmtNum(snap.dtcEnd));
+            }
+            if (snap.fbaProcessingEnd > 0) {
+              invParts.push('Proc: ' + fmtNum(snap.fbaProcessingEnd));
+            }
+            if (invParts.length > 0) {
+              lines.push(invParts.join(' | '));
+            }
+
+            // Show first event if any (truncated)
+            if (snap.events.length > 0) {
+              var evt = snap.events[0];
+              if (evt.length > 30) evt = evt.substring(0, 28) + '..';
+              lines.push(evt);
+            }
+
+            cellValues.push(lines.join('\n'));
+
+            // Determine background color
+            var bg = getChannelColor(snap.channel);
+            // Check for arrival event
+            var hasArrival = false;
+            for (var ei = 0; ei < snap.events.length; ei++) {
+              if (snap.events[ei].indexOf('arrived') > -1) {
+                hasArrival = true;
+                break;
+              }
+            }
+            if (hasArrival) bg = COLORS.PROCESSING;
+
+            cellBgs.push(bg);
+          } else {
+            // Date is outside the forecast range
+            cellValues.push(String(day) + '\n—');
+            cellBgs.push('#F5F5F5');
+          }
+          day += 1;
+        }
+      }
+
+      // Write this week's row
+      for (var wc = 0; wc < numCols; wc++) {
+        var cell = sheet.getRange(weekRow, wc + 1);
+        cell.setValue(cellValues[wc])
+            .setBackground(cellBgs[wc])
+            .setFontSize(8)
+            .setVerticalAlignment('top')
+            .setWrap(true)
+            .setBorder(true, true, true, true, false, false);
+      }
+
+      // Set row height to fit calendar cells
+      sheet.setRowHeight(weekRow, 85);
+      weekRow += 1;
+    }
+
+    row = weekRow + 1; // spacer between months
+  }
+
+  // ── Bold the day numbers in each cell ──
+  // (Can't selectively bold within a cell via script without RichTextValue;
+  //  we handle this by making the first line stand out via the cell layout)
+
+  // ── Freeze title ──
+  sheet.setFrozenRows(1);
+
+  SpreadsheetApp.flush();
 }
