@@ -145,13 +145,21 @@ function getSkuList() {
 /**
  * Reads one SKU's current settings and returns them as a flat object
  * for the dialog form. Dates are returned as ISO strings.
+ * Also returns gorillaFields — an array of field keys that are currently
+ * Gorilla-linked (have formulas referencing Gorilla Data or GORILLA_*).
  * @param {string} skuId
- * @return {Object}
+ * @return {Object} { values: {...}, gorillaFields: [...], gorillaWarningFields: [...] }
  */
 function getSkuSettingsForDialog(skuId) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var p  = namedRangePrefix(skuId);
-  var result = {};
+  var values = {};
+  var gorillaFields = [];
+  var gorillaWarningFields = [];
+
+  // Check if Gorilla is configured
+  var sellerRange = ss.getRangeByName('GLOBAL__GORILLA_SELLER_ID');
+  var gorillaActive = sellerRange && sellerRange.getValue() && sellerRange.getValue() !== '';
 
   var fields = [
     'FBA_OVERRIDE',
@@ -174,24 +182,60 @@ function getSkuSettingsForDialog(skuId) {
     'SELLING_PRICE', 'DPP_MARGIN', 'PAST_OOS_DAYS'
   ];
 
-  for (var i = 0; i < fields.length; i++) {
-    var key = fields[i];
-    var val = readNamedRange(ss, p + '__' + key);
-
-    // Convert Date objects to ISO string for the HTML form
-    if (val instanceof Date) {
-      result[key] = val.toISOString();
-    } else {
-      result[key] = val;
+  // Build a set of fields that have gorillaWarning in SKU_INPUT_ROWS
+  var warningKeys = {};
+  for (var w = 0; w < SKU_INPUT_ROWS.length; w++) {
+    if (SKU_INPUT_ROWS[w].gorillaWarning) {
+      warningKeys[SKU_INPUT_ROWS[w].key] = true;
     }
   }
 
-  return result;
+  for (var i = 0; i < fields.length; i++) {
+    var key = fields[i];
+    var rangeName = p + '__' + key;
+    var range = ss.getRangeByName(rangeName);
+
+    if (!range) {
+      values[key] = null;
+      continue;
+    }
+
+    // Check if this cell has a Gorilla-linked formula
+    var formula = range.getFormula();
+    if (formula && (formula.indexOf(GORILLA_DATA_TAB_NAME) > -1 || formula.indexOf('GORILLA_') > -1)) {
+      gorillaFields.push(key);
+    }
+
+    // Check if this is a Gorilla warning field (amber — leave at 0)
+    if (gorillaActive && warningKeys[key]) {
+      gorillaWarningFields.push(key);
+    }
+
+    var val = range.getValue();
+
+    // Convert Date objects to ISO string for the HTML form
+    if (val instanceof Date) {
+      values[key] = val.toISOString();
+    } else {
+      values[key] = val;
+    }
+  }
+
+  return {
+    values: values,
+    gorillaFields: gorillaFields,
+    gorillaWarningFields: gorillaWarningFields
+  };
 }
 
 /**
  * Saves one SKU's settings from the dialog form back to the Settings tab.
  * Dates arrive as "yyyy-mm-dd" strings or null.
+ *
+ * Preserves Gorilla formulas: if a cell has a Gorilla formula and the user
+ * didn't change the value, the formula is kept. If the user typed a different
+ * number, we write the manual override and update the visual indicator.
+ *
  * @param {string} skuId
  * @param {Object} values  flat object of field key -> value
  */
@@ -213,7 +257,34 @@ function saveSkuSettingsFromDialog(skuId, values) {
     var range = ss.getRangeByName(rangeName);
     if (!range) continue;
 
+    // Check if this cell has a Gorilla-linked formula
+    var formula = range.getFormula();
+    var isGorillaCell = formula &&
+      (formula.indexOf(GORILLA_DATA_TAB_NAME) > -1 || formula.indexOf('GORILLA_') > -1);
+
     var val = values[key];
+
+    if (isGorillaCell) {
+      // Compare: if the sidebar value matches the current formula result, skip (preserve formula)
+      var currentVal = range.getValue();
+      var sidebarNum = (val !== null && val !== undefined && val !== '') ? Number(val) : null;
+
+      if (sidebarNum === null || sidebarNum === currentVal) {
+        // User didn't change this Gorilla field — keep the formula
+        continue;
+      }
+
+      // User changed the value — write manual override and update visual indicator
+      range.setValue(sidebarNum);
+      range.setBackground('#fff3cd'); // amber = manual override
+      range.setNote(
+        'MANUAL OVERRIDE — Gorilla auto-populate has been replaced.\n' +
+        'This cell was previously fed by Gorilla ROI (live Amazon data).\n' +
+        'Your typed value will be used in the forecast instead.\n\n' +
+        'To restore: Menu → Inventory Forecast → Refresh Gorilla Data.'
+      );
+      continue;
+    }
 
     if (dateFields.indexOf(key) > -1) {
       // Date field: convert "yyyy-mm-dd" string to Date, or clear

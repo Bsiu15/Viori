@@ -269,6 +269,29 @@
       visibility: visible;
       opacity: 1;
     }
+    /* Gorilla-linked field indicator (light blue = auto from Amazon) */
+    .field input.gorilla-linked {
+      background: #e8f0fe;
+      color: #1a73e8;
+      border-color: #a8c7fa;
+    }
+    .gorilla-badge {
+      display: none;
+      font-size: 9px;
+      color: #1a73e8;
+      background: #e8f0fe;
+      border-radius: 4px;
+      padding: 1px 5px;
+      white-space: nowrap;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+    .gorilla-badge.show { display: inline-block; }
+    /* Gorilla warning field indicator (amber = leave at 0) */
+    .field input.gorilla-warning {
+      background: #fff3cd;
+      border-color: #f9c846;
+    }
     /* Currency input prefix */
     .currency-wrap {
       display: flex;
@@ -336,6 +359,7 @@
                 <span class="info-tip" tabindex="0">i<span class="tip-text">Units you're preparing to ship to Amazon but haven't sent yet.</span></span>
               </label>
               <input type="number" id="INBOUND_WORKING" value="0" min="0">
+              <span class="gorilla-badge" id="gorilla_INBOUND_WORKING">GORILLA</span>
             </div>
             <div class="field">
               <label>
@@ -343,6 +367,7 @@
                 <span class="info-tip" tabindex="0">i<span class="tip-text">Units currently on a truck or carrier heading to Amazon's warehouse.</span></span>
               </label>
               <input type="number" id="INBOUND_SHIPPED" value="0" min="0">
+              <span class="gorilla-badge" id="gorilla_INBOUND_SHIPPED">GORILLA</span>
             </div>
             <div class="field">
               <label>
@@ -350,6 +375,7 @@
                 <span class="info-tip" tabindex="0">i<span class="tip-text">Units at Amazon's dock being checked in and shelved. These become available after the check-in delay.</span></span>
               </label>
               <input type="number" id="INBOUND_RECEIVING" value="0" min="0">
+              <span class="gorilla-badge" id="gorilla_INBOUND_RECEIVING">GORILLA</span>
             </div>
           </div>
         </div>
@@ -367,6 +393,7 @@
                 <span class="info-tip" tabindex="0">i<span class="tip-text">Units ready to sell right now. When a customer orders, Amazon picks and ships from these.</span></span>
               </label>
               <input type="number" id="ONHAND_AVAILABLE" value="0" min="0" oninput="updateFbaAuto()">
+              <span class="gorilla-badge" id="gorilla_ONHAND_AVAILABLE">GORILLA</span>
             </div>
             <div class="field">
               <label>
@@ -374,6 +401,7 @@
                 <span class="info-tip" tabindex="0">i<span class="tip-text">Units being moved between Amazon warehouses to be closer to customers. Temporarily unavailable.</span></span>
               </label>
               <input type="number" id="ONHAND_FC_TRANSFER" value="0" min="0">
+              <span class="gorilla-badge" id="gorilla_ONHAND_FC_TRANSFER">GORILLA</span>
             </div>
           </div>
         </div>
@@ -487,6 +515,7 @@
             <span class="info-tip" tabindex="0">i<span class="tip-text">How many units you sell per day on average. This is auto-pulled from your recent sales history (last X days). Think of it as your "normal" daily selling speed.</span></span>
           </label>
           <input type="number" id="DAILY_VELOCITY" value="0" min="0" step="0.1">
+          <span class="gorilla-badge" id="gorilla_DAILY_VELOCITY">GORILLA</span>
         </div>
         <div class="override-group">
           <div class="override-label">Override 1
@@ -509,6 +538,7 @@
               <span class="info-tip" tabindex="0">i<span class="tip-text">Auto-fills when you pick dates! It looks at what you sold during these same dates last year, then divides by the number of days to get a daily rate. You can always type your own number to override it.</span></span>
             </label>
             <input type="number" id="VEL_OVERRIDE_1_VALUE" min="0" step="0.1">
+            <span class="gorilla-badge" id="gorilla_VEL_OVERRIDE_1_VALUE">GORILLA</span>
           </div>
         </div>
         <div class="override-group">
@@ -532,6 +562,7 @@
               <span class="info-tip" tabindex="0">i<span class="tip-text">Auto-fills when you pick dates! It looks at what you sold during these same dates last year, then divides by the number of days to get a daily rate. You can always type your own number to override it.</span></span>
             </label>
             <input type="number" id="VEL_OVERRIDE_2_VALUE" min="0" step="0.1">
+            <span class="gorilla-badge" id="gorilla_VEL_OVERRIDE_2_VALUE">GORILLA</span>
           </div>
         </div>
         <div class="override-group">
@@ -555,6 +586,7 @@
               <span class="info-tip" tabindex="0">i<span class="tip-text">Auto-fills when you pick dates! It looks at what you sold during these same dates last year, then divides by the number of days to get a daily rate. You can always type your own number to override it.</span></span>
             </label>
             <input type="number" id="VEL_OVERRIDE_3_VALUE" min="0" step="0.1">
+            <span class="gorilla-badge" id="gorilla_VEL_OVERRIDE_3_VALUE">GORILLA</span>
           </div>
         </div>
       </div>
@@ -661,6 +693,7 @@
           <div class="currency-wrap">
             <span class="prefix">$</span>
             <input type="number" id="SELLING_PRICE" min="0" step="0.01">
+            <span class="gorilla-badge" id="gorilla_SELLING_PRICE">GORILLA</span>
           </div>
         </div>
         <div class="field">
@@ -847,13 +880,58 @@
       loadSku();
     }).getSkuList();
 
+    // Track which fields are currently Gorilla-linked for this SKU
+    var currentGorillaFields = [];
+
+    // Clear all Gorilla styling from input fields
+    function clearGorillaStyles() {
+      for (var i = 0; i < FIELD_IDS.length; i++) {
+        var el = document.getElementById(FIELD_IDS[i]);
+        if (el) {
+          el.classList.remove('gorilla-linked');
+          el.classList.remove('gorilla-warning');
+        }
+      }
+      // Hide all gorilla badges
+      var badges = document.querySelectorAll('.gorilla-badge');
+      for (var b = 0; b < badges.length; b++) {
+        badges[b].classList.remove('show');
+      }
+    }
+
+    // Apply Gorilla styling to fields
+    function applyGorillaStyles(gorillaFields, warningFields) {
+      currentGorillaFields = gorillaFields || [];
+      for (var i = 0; i < gorillaFields.length; i++) {
+        var el = document.getElementById(gorillaFields[i]);
+        if (el) {
+          el.classList.add('gorilla-linked');
+          // Show badge if one exists next to this field
+          var badge = document.getElementById('gorilla_' + gorillaFields[i]);
+          if (badge) badge.classList.add('show');
+        }
+      }
+      var wf = warningFields || [];
+      for (var j = 0; j < wf.length; j++) {
+        var wEl = document.getElementById(wf[j]);
+        if (wEl) wEl.classList.add('gorilla-warning');
+      }
+    }
+
     // Load values for the selected SKU
     function loadSku() {
       var skuId = document.getElementById('skuSelect').value;
       if (!skuId) return;
       showStatus('Loading...', '');
 
-      google.script.run.withSuccessHandler(function(values) {
+      google.script.run.withSuccessHandler(function(result) {
+        var values = result.values;
+        var gorillaFields = result.gorillaFields || [];
+        var warningFields = result.gorillaWarningFields || [];
+
+        // Clear previous Gorilla styling
+        clearGorillaStyles();
+
         for (var key in values) {
           var el = document.getElementById(key);
           if (!el) continue;
@@ -878,6 +956,9 @@
             el.value = (val !== null && val !== undefined) ? val : '';
           }
         }
+
+        // Apply Gorilla visual indicators
+        applyGorillaStyles(gorillaFields, warningFields);
 
         // Set FBA field state: if FBA_OVERRIDE has a value, it's manual; otherwise auto-calc
         var fbaVal = values['FBA_OVERRIDE'];
