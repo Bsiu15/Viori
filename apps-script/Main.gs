@@ -27,6 +27,7 @@ function onOpen() {
     .addItem('Set Forecast Date Range', 'openDateRangeDialog')
     .addSeparator()
     .addItem('Recalculate All', 'recalculateAll')
+    .addItem('Refresh Gorilla Data', 'refreshGorillaData')
     .addSeparator()
     .addItem('Initial Setup (first time)', 'initialSetup')
     .addItem('Install Auto-Refresh Trigger', 'installTrigger')
@@ -272,10 +273,57 @@ function initialSetup() {
 }
 
 /**
+ * Rebuilds the Gorilla Data tab and re-links Settings cells.
+ * Use after entering or changing Gorilla ROI Seller ID.
+ */
+function refreshGorillaData() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // Check if Gorilla is configured
+  var sellerRange = ss.getRangeByName('GLOBAL__GORILLA_SELLER_ID');
+  if (!sellerRange || !sellerRange.getValue()) {
+    SpreadsheetApp.getUi().alert(
+      'Gorilla ROI Not Configured',
+      'Enter your Gorilla Seller ID in the Settings tab first, then run this again.',
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+    return;
+  }
+
+  ss.toast('Building Gorilla Data tab...', 'Gorilla ROI', 5);
+
+  // Build the Gorilla Data formula sheet
+  buildGorillaDataTab();
+
+  // Rebuild Settings tab to link cells to Gorilla Data
+  buildSettingsTab();
+
+  // Recalculate with the new data
+  recalculateAll();
+
+  ss.toast(
+    'Gorilla ROI data linked! Values will populate as Gorilla ROI refreshes.',
+    'Done', 5
+  );
+}
+
+/**
  * Full recalculation: reads all SKU settings, runs the waterfall engine
  * for each SKU, renders all detail tabs, and rebuilds the Summary tab.
  */
 function recalculateAll() {
+  // Nudge: if Gorilla is configured but Gorilla Data tab doesn't exist yet
+  try {
+    var ss2 = SpreadsheetApp.getActiveSpreadsheet();
+    var gorillaRange = ss2.getRangeByName('GLOBAL__GORILLA_SELLER_ID');
+    if (gorillaRange) {
+      var gId = gorillaRange.getValue();
+      if (gId && gId !== '' && !ss2.getSheetByName(GORILLA_DATA_TAB_NAME)) {
+        ss2.toast('Gorilla Seller ID detected! Run "Inventory Forecast > Refresh Gorilla Data" to connect.', 'Gorilla ROI', 10);
+      }
+    }
+  } catch(e) { /* Gorilla config not set up yet */ }
+
   var skus = getSkus();
   var allResults = [];
 

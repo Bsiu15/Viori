@@ -30,7 +30,10 @@ function readNamedRange(ss, rangeName) {
 function readNum(ss, rangeName) {
   var val = readNamedRange(ss, rangeName);
   if (val === null || val === '') return 0;
-  return Number(val) || 0;
+  // Handle formula error values (#NAME?, #REF!, etc.) from missing add-ons
+  if (typeof val === 'string' && val.charAt(0) === '#') return 0;
+  var num = Number(val);
+  return isNaN(num) ? 0 : num;
 }
 
 /**
@@ -42,6 +45,8 @@ function readNum(ss, rangeName) {
 function readDate(ss, rangeName) {
   var val = readNamedRange(ss, rangeName);
   if (val === null) return null;
+  // Handle formula error values from missing add-ons
+  if (typeof val === 'string' && val.charAt(0) === '#') return null;
   if (val instanceof Date) return val;
   var d = new Date(val);
   return isNaN(d.getTime()) ? null : d;

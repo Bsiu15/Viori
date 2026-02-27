@@ -147,8 +147,9 @@ var COLORS = {
 };
 
 // ── Settings tab layout constants ───────────────────────────────────────────
-var SETTINGS_TAB_NAME  = 'Settings';
-var SUMMARY_TAB_NAME   = 'Summary';
+var SETTINGS_TAB_NAME      = 'Settings';
+var SUMMARY_TAB_NAME       = 'Summary';
+var GORILLA_DATA_TAB_NAME  = 'Gorilla Data';
 
 /**
  * Number of input rows per SKU block in the Settings tab.

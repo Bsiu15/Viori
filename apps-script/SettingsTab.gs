@@ -121,6 +121,31 @@ function buildSettingsTab() {
       savedEndDate = gVal;
     }
   }
+  // Preserve Gorilla ROI config
+  var savedGorillaSellerId = null;
+  var gorillaSellerRange = ss.getRangeByName('GLOBAL__GORILLA_SELLER_ID');
+  if (gorillaSellerRange) {
+    var gsVal = gorillaSellerRange.getValue();
+    if (gsVal !== '' && gsVal !== undefined && gsVal !== null) {
+      savedGorillaSellerId = gsVal;
+    }
+  }
+  var savedGorillaMarketplace = null;
+  var gorillaMarketRange = ss.getRangeByName('GLOBAL__GORILLA_MARKETPLACE');
+  if (gorillaMarketRange) {
+    var gmVal = gorillaMarketRange.getValue();
+    if (gmVal !== '' && gmVal !== undefined && gmVal !== null) {
+      savedGorillaMarketplace = gmVal;
+    }
+  }
+  var savedGorillaLookback = null;
+  var gorillaLookbackRange = ss.getRangeByName('GLOBAL__GORILLA_LOOKBACK_DAYS');
+  if (gorillaLookbackRange) {
+    var glVal = gorillaLookbackRange.getValue();
+    if (glVal !== '' && glVal !== undefined && glVal !== null) {
+      savedGorillaLookback = glVal;
+    }
+  }
   for (var sv = 0; sv < skus.length; sv++) {
     var svPrefix = namedRangePrefix(skus[sv].id);
     savedValues[svPrefix] = {};
@@ -217,6 +242,54 @@ function buildSettingsTab() {
   ss.setNamedRange('GLOBAL__FORECAST_END_DATE', endDateCell);
   row += 2; // spacer
 
+  // ── Gorilla ROI Integration section ──
+  sheet.getRange(row, 1, 1, 2).merge()
+       .setValue('Gorilla ROI Integration')
+       .setBackground(COLORS.SECTION_BG)
+       .setFontWeight('bold')
+       .setFontSize(11)
+       .setBorder(true, true, true, true, false, false);
+  row += 1;
+
+  sheet.getRange(row, SETTINGS_LABEL_COL)
+       .setValue('Gorilla Seller ID')
+       .setFontSize(10);
+  var gorillaIdCell = sheet.getRange(row, SETTINGS_VALUE_COL);
+  if (savedGorillaSellerId) {
+    gorillaIdCell.setValue(savedGorillaSellerId);
+  }
+  sheet.getRange(row, 1, 1, 2).setBorder(null, true, null, true, false, false);
+  ss.setNamedRange('GLOBAL__GORILLA_SELLER_ID', gorillaIdCell);
+  row += 1;
+
+  sheet.getRange(row, SETTINGS_LABEL_COL)
+       .setValue('Gorilla Marketplace')
+       .setFontSize(10);
+  var gorillaMktCell = sheet.getRange(row, SETTINGS_VALUE_COL);
+  gorillaMktCell.setValue(savedGorillaMarketplace || 'US');
+  sheet.getRange(row, 1, 1, 2).setBorder(null, true, null, true, false, false);
+  ss.setNamedRange('GLOBAL__GORILLA_MARKETPLACE', gorillaMktCell);
+  row += 1;
+
+  sheet.getRange(row, SETTINGS_LABEL_COL)
+       .setValue('Velocity lookback (days)')
+       .setFontSize(10);
+  var gorillaLookbackCell = sheet.getRange(row, SETTINGS_VALUE_COL);
+  gorillaLookbackCell.setValue(savedGorillaLookback || 30)
+                     .setNumberFormat('#,##0');
+  sheet.getRange(row, 1, 1, 2).setBorder(null, true, null, true, false, false);
+  ss.setNamedRange('GLOBAL__GORILLA_LOOKBACK_DAYS', gorillaLookbackCell);
+  row += 1;
+
+  // Help note
+  sheet.getRange(row, SETTINGS_LABEL_COL)
+       .setValue('After entering Seller ID, run: Inventory Forecast > Refresh Gorilla Data')
+       .setFontSize(9)
+       .setFontStyle('italic')
+       .setFontColor('#888888');
+  sheet.getRange(row, 1, 1, 2).setBorder(null, true, true, true, false, false);
+  row += 2; // spacer
+
   // ── Build each SKU block ──
   for (var i = 0; i < skus.length; i++) {
     var sku = skus[i];
@@ -241,17 +314,35 @@ function buildSettingsTab() {
            .setValue(input.label)
            .setFontSize(10);
 
-      // Restore saved value if it exists, otherwise use default
+      // Restore saved value if it exists, otherwise use default or Gorilla link
       var valueCell = sheet.getRange(row, SETTINGS_VALUE_COL);
+      var isGorillaLinked = false;
+
       if (skuSaved.hasOwnProperty(input.key)) {
         var saved = skuSaved[input.key];
         if (saved && typeof saved === 'object' && saved.__isFormula) {
           valueCell.setFormula(saved.formula);
+          // Re-apply Gorilla indicator if it's a Gorilla-linked formula
+          if (saved.formula.indexOf(GORILLA_DATA_TAB_NAME) > -1) {
+            isGorillaLinked = true;
+          }
         } else {
           valueCell.setValue(saved);
         }
+      } else if (savedGorillaSellerId && GORILLA_LINK_MAP.hasOwnProperty(input.key)) {
+        // Auto-link to Gorilla Data tab (no saved value + Gorilla configured + field is linkable)
+        var gorillaCol = GORILLA_LINK_MAP[input.key];
+        var gorillaRow = i + 2; // SKU index 0 → Gorilla Data row 2
+        valueCell.setFormula("=IFERROR('" + GORILLA_DATA_TAB_NAME + "'!" + gorillaCol + gorillaRow + ", 0)");
+        isGorillaLinked = true;
       } else if (input.defaultVal !== '' && input.defaultVal !== null) {
         valueCell.setValue(input.defaultVal);
+      }
+
+      // Visual indicator for Gorilla-linked cells
+      if (isGorillaLinked) {
+        valueCell.setBackground('#E8F0FE');
+        valueCell.setNote('Auto-populated from Gorilla ROI. Type a number to override.');
       }
 
       // Apply formatting
