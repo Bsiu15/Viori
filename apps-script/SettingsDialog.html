@@ -352,20 +352,20 @@
           </div>
         </div>
 
-        <!-- Inbound -->
-        <div class="inv-category">
+        <!-- Inbound (collapsible — full view when manual) -->
+        <div class="inv-category" id="catInbound">
           <div class="inv-category-header" onclick="toggleCat(this)">
             <span class="inv-chevron">&#9654;</span>
             <span class="inv-cat-label">Inbound</span>
           </div>
           <div class="inv-detail">
-            <div class="field">
+            <div class="field" id="fieldInboundWorking">
               <label>Working
                 <span class="info-tip" tabindex="0">i<span class="tip-text">Units you're preparing to ship to Amazon but haven't sent yet.</span></span>
               </label>
               <input type="number" id="INBOUND_WORKING" value="0" min="0">
             </div>
-            <div class="field">
+            <div class="field" id="fieldInboundShipped">
               <label>Shipped
                 <span class="info-tip" tabindex="0">i<span class="tip-text">Units on a truck heading to Amazon's warehouse.</span></span>
               </label>
@@ -373,7 +373,7 @@
             </div>
             <div class="field">
               <label>Receiving
-                <span class="info-tip" tabindex="0">i<span class="tip-text">Units at Amazon's dock being checked in and shelved.</span></span>
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units at Amazon's dock being checked in and shelved. Becomes available after the check-in delay.</span></span>
               </label>
               <input type="number" id="INBOUND_RECEIVING" value="0" min="0">
             </div>
@@ -381,7 +381,7 @@
         </div>
 
         <!-- On-hand -->
-        <div class="inv-category">
+        <div class="inv-category" id="catOnhand">
           <div class="inv-category-header" onclick="toggleCat(this)">
             <span class="inv-chevron">&#9654;</span>
             <span class="inv-cat-label">On-hand</span>
@@ -395,15 +395,15 @@
             </div>
             <div class="field">
               <label>FC transfer
-                <span class="info-tip" tabindex="0">i<span class="tip-text">Units being moved between Amazon warehouses. Temporarily unavailable.</span></span>
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units being moved between Amazon warehouses. Becomes available after the check-in delay.</span></span>
               </label>
               <input type="number" id="ONHAND_FC_TRANSFER" value="0" min="0">
             </div>
           </div>
         </div>
 
-        <!-- Reserved -->
-        <div class="inv-category">
+        <!-- Reserved (hidden when Gorilla active — forced to 0) -->
+        <div class="inv-category" id="catReserved">
           <div class="inv-category-header" onclick="toggleCat(this)">
             <span class="inv-chevron">&#9654;</span>
             <span class="inv-cat-label">Reserved</span>
@@ -411,21 +411,21 @@
           <div class="inv-detail">
             <div class="field">
               <label>Customer order
-                <span class="info-tip" tabindex="0">i<span class="tip-text">Units set aside for placed orders. When Gorilla is active, Available already excludes these — leave at 0 to avoid double-subtracting.</span></span>
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units set aside for placed orders. Available already excludes these when using Gorilla.</span></span>
               </label>
               <input type="number" id="RESERVED_CUSTOMER_ORDER" value="0" min="0">
             </div>
             <div class="field">
               <label>FC processing
-                <span class="info-tip" tabindex="0">i<span class="tip-text">Units being relabeled or prepped inside Amazon. When Gorilla is active, these aren't broken out separately — leave at 0 to avoid double-counting.</span></span>
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units being relabeled or prepped inside Amazon.</span></span>
               </label>
               <input type="number" id="RESERVED_FC_PROCESSING" value="0" min="0">
             </div>
           </div>
         </div>
 
-        <!-- Researching -->
-        <div class="inv-category">
+        <!-- Researching (hidden when Gorilla active — display only) -->
+        <div class="inv-category" id="catResearching">
           <div class="field" style="padding: 6px 0;">
             <label>Researching
               <span class="info-tip" tabindex="0">i<span class="tip-text">Units Amazon is investigating — may be misplaced or under review.</span></span>
@@ -434,8 +434,8 @@
           </div>
         </div>
 
-        <!-- Unfulfillable -->
-        <div class="inv-category">
+        <!-- Unfulfillable (hidden when Gorilla active — display only) -->
+        <div class="inv-category" id="catUnfulfillable">
           <div class="inv-category-header" onclick="toggleCat(this)">
             <span class="inv-chevron">&#9654;</span>
             <span class="inv-cat-label">Unfulfillable</span>
@@ -676,8 +676,19 @@
     var currentGorillaFields = [];
     var isGorillaActive = false;
 
-    // Warning fields — locked to 0 when Gorilla is active
-    var GORILLA_WARNING_FIELDS = ['RESERVED_CUSTOMER_ORDER', 'RESERVED_FC_PROCESSING'];
+    // Fields that don't affect the forecast — hidden when Gorilla is active
+    var DISPLAY_ONLY_FIELDS = [
+      'INBOUND_WORKING', 'INBOUND_SHIPPED', 'RESEARCHING',
+      'UNFULFILLABLE_WAREHOUSE_DAMAGED', 'UNFULFILLABLE_DEFECTIVE', 'UNFULFILLABLE_EXPIRED',
+      'UNFULFILLABLE_CUSTOMER_DAMAGED', 'UNFULFILLABLE_CARRIER_DAMAGED', 'UNFULFILLABLE_DISTRIBUTOR_DAMAGED'
+    ];
+    // Fields forced to 0 when Gorilla is active (double-count risk)
+    var ZERO_WHEN_GORILLA = ['RESERVED_CUSTOMER_ORDER', 'RESERVED_FC_PROCESSING'];
+    // DOM elements to hide when Gorilla is active
+    var GORILLA_HIDE_IDS = [
+      'fieldInboundWorking', 'fieldInboundShipped',
+      'catReserved', 'catResearching', 'catUnfulfillable'
+    ];
 
     // ── Tooltip positioning ──
     (function() {
@@ -760,27 +771,6 @@
       }
     }
 
-    // ── Warning field guard — only fires when user tries to change from 0 ──
-    function guardWarningField(e) {
-      var el = e.target;
-      if (!isGorillaActive) return;
-      if (GORILLA_WARNING_FIELDS.indexOf(el.id) === -1) return;
-
-      // Only warn when changing from 0 to something
-      var val = parseFloat(el.value) || 0;
-      if (val === 0) return;
-
-      var proceed = confirm(
-        'Are you sure?\n\n' +
-        'Gorilla is active — Amazon\'s "Available" already excludes reserved units. ' +
-        'Entering a number here will double-subtract from your forecast.\n\n' +
-        'Click OK to keep your value, or Cancel to reset to 0.'
-      );
-
-      if (!proceed) {
-        el.value = '0';
-      }
-    }
 
     // ── Field ID lists ──
     var FIELD_IDS = [
@@ -836,6 +826,11 @@
         if (el) el.classList.remove('gorilla-linked');
       }
       document.getElementById('gorillaLegend').classList.remove('show');
+      // Show all hidden sections
+      for (var h = 0; h < GORILLA_HIDE_IDS.length; h++) {
+        var hEl = document.getElementById(GORILLA_HIDE_IDS[h]);
+        if (hEl) hEl.style.display = '';
+      }
       currentGorillaFields = [];
       isGorillaActive = false;
     }
@@ -861,13 +856,20 @@
         if (fbaEl) fbaEl.classList.add('gorilla-linked');
       }
 
-      // Force warning fields to 0 when Gorilla is active
-      for (var w = 0; w < GORILLA_WARNING_FIELDS.length; w++) {
-        var wEl = document.getElementById(GORILLA_WARNING_FIELDS[w]);
-        if (wEl) {
-          var val = parseFloat(wEl.value) || 0;
-          if (val !== 0) wEl.value = '0';
-        }
+      // Hide display-only sections and zero out their fields
+      for (var h = 0; h < GORILLA_HIDE_IDS.length; h++) {
+        var hEl = document.getElementById(GORILLA_HIDE_IDS[h]);
+        if (hEl) hEl.style.display = 'none';
+      }
+      for (var d = 0; d < DISPLAY_ONLY_FIELDS.length; d++) {
+        var dEl = document.getElementById(DISPLAY_ONLY_FIELDS[d]);
+        if (dEl) dEl.value = '0';
+      }
+
+      // Force double-count fields to 0
+      for (var w = 0; w < ZERO_WHEN_GORILLA.length; w++) {
+        var wEl = document.getElementById(ZERO_WHEN_GORILLA[w]);
+        if (wEl) wEl.value = '0';
       }
     }
 
@@ -912,15 +914,6 @@
         // Set FBA field state
         var fbaVal = values['FBA_OVERRIDE'];
         setFbaVisualState(fbaVal !== null && fbaVal !== undefined && fbaVal !== '');
-
-        // Attach warning field guards
-        for (var w = 0; w < GORILLA_WARNING_FIELDS.length; w++) {
-          var wEl = document.getElementById(GORILLA_WARNING_FIELDS[w]);
-          if (wEl) {
-            wEl.removeEventListener('change', guardWarningField);
-            wEl.addEventListener('change', guardWarningField);
-          }
-        }
 
         hideStatus();
       }).withFailureHandler(function(err) {
