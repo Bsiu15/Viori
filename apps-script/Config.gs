@@ -15,8 +15,25 @@ var START_DATE = (function() {
   d.setHours(0, 0, 0, 0);
   return d;
 })();
-/** Last day of the forecast window */
-var END_DATE   = new Date(2026, 3, 30); // Apr 30, 2026
+/** Last day of the forecast window.
+ *  Reads from the "Forecast end date" cell in the Settings tab.
+ *  Falls back to Apr 30, 2026 if the named range hasn't been created yet
+ *  (e.g. first run before Settings tab is built).
+ */
+var END_DATE = (function() {
+  var fallback = new Date(2026, 3, 30); // Apr 30, 2026
+  try {
+    var r = SpreadsheetApp.getActiveSpreadsheet().getRangeByName('GLOBAL__FORECAST_END_DATE');
+    if (r) {
+      var v = r.getValue();
+      if (v instanceof Date && !isNaN(v.getTime())) {
+        v.setHours(23, 59, 59, 0);
+        return v;
+      }
+    }
+  } catch (e) { /* spreadsheet not available (e.g. during API testing) */ }
+  return fallback;
+})();
 
 // ── SKU limits ──────────────────────────────────────────────────────────────
 var MAX_SKUS = 15;

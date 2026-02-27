@@ -104,6 +104,15 @@ function buildSettingsTab() {
 
   // ── Preserve existing values before clearing ──
   var savedValues = {};
+  // Preserve global settings
+  var savedEndDate = null;
+  var globalEndRange = ss.getRangeByName('GLOBAL__FORECAST_END_DATE');
+  if (globalEndRange) {
+    var gVal = globalEndRange.getValue();
+    if (gVal instanceof Date && !isNaN(gVal.getTime())) {
+      savedEndDate = gVal;
+    }
+  }
   for (var sv = 0; sv < skus.length; sv++) {
     var svPrefix = namedRangePrefix(skus[sv].id);
     savedValues[svPrefix] = {};
@@ -133,10 +142,14 @@ function buildSettingsTab() {
   sheet.clear();
   sheet.clearFormats();
 
-  // Remove existing named ranges that belong to our SKU inputs
+  // Remove existing named ranges that belong to our SKU inputs or global settings
   var existingRanges = ss.getNamedRanges();
   for (var r = 0; r < existingRanges.length; r++) {
     var rName = existingRanges[r].getName();
+    if (rName.indexOf('GLOBAL__') === 0) {
+      existingRanges[r].remove();
+      continue;
+    }
     for (var s = 0; s < skus.length; s++) {
       if (rName.indexOf(namedRangePrefix(skus[s].id)) === 0) {
         existingRanges[r].remove();
@@ -158,6 +171,29 @@ function buildSettingsTab() {
   sheet.getRange(row, 1).setValue('All inputs below are per SKU. Change any value to recalculate.')
        .setFontSize(10).setFontStyle('italic').setFontColor('#555555');
   row += 2; // blank spacer
+
+  // ── Global Settings section ──
+  sheet.getRange(row, 1, 1, 2).merge()
+       .setValue('Global Settings')
+       .setBackground(COLORS.SECTION_BG)
+       .setFontWeight('bold')
+       .setFontSize(11)
+       .setBorder(true, true, true, true, false, false);
+  row += 1;
+
+  sheet.getRange(row, SETTINGS_LABEL_COL)
+       .setValue('Forecast end date')
+       .setFontSize(10);
+  var endDateCell = sheet.getRange(row, SETTINGS_VALUE_COL);
+  if (savedEndDate) {
+    endDateCell.setValue(savedEndDate);
+  } else {
+    endDateCell.setValue(END_DATE);
+  }
+  endDateCell.setNumberFormat('m/d/yyyy');
+  sheet.getRange(row, 1, 1, 2).setBorder(null, true, true, true, false, false);
+  ss.setNamedRange('GLOBAL__FORECAST_END_DATE', endDateCell);
+  row += 2; // spacer
 
   // ── Build each SKU block ──
   for (var i = 0; i < skus.length; i++) {
