@@ -483,51 +483,77 @@
       <div class="section-header">Sales Velocity</div>
       <div class="section-body">
         <div class="field">
-          <label>Daily velocity (units/day)</label>
+          <label>Daily velocity (units/day)
+            <span class="info-tip" tabindex="0">i<span class="tip-text">How many units you sell per day on average. This is auto-pulled from your recent sales history (last X days). Think of it as your "normal" daily selling speed.</span></span>
+          </label>
           <input type="number" id="DAILY_VELOCITY" value="0" min="0" step="0.1">
         </div>
         <div class="override-group">
-          <div class="override-label">Override 1</div>
+          <div class="override-label">Override 1
+            <span class="info-tip" tabindex="0">i<span class="tip-text">Use overrides for dates when you expect sales to be different from normal — like Prime Day, holidays, or a big promo. Just pick the dates and the units/day fills in automatically from last year's sales for that same time period.</span></span>
+          </div>
           <div class="field">
-            <label>Start date</label>
+            <label>Start date
+              <span class="info-tip" tabindex="0">i<span class="tip-text">First day of the period where sales will be different from your normal daily rate.</span></span>
+            </label>
             <input type="date" id="VEL_OVERRIDE_1_START">
           </div>
           <div class="field">
-            <label>End date</label>
+            <label>End date
+              <span class="info-tip" tabindex="0">i<span class="tip-text">Last day of the override period. Sales go back to your normal rate the day after this.</span></span>
+            </label>
             <input type="date" id="VEL_OVERRIDE_1_END">
           </div>
           <div class="field">
-            <label>Units/day</label>
+            <label>Units/day
+              <span class="info-tip" tabindex="0">i<span class="tip-text">Auto-fills when you pick dates! It looks at what you sold during these same dates last year, then divides by the number of days to get a daily rate. You can always type your own number to override it.</span></span>
+            </label>
             <input type="number" id="VEL_OVERRIDE_1_VALUE" min="0" step="0.1">
           </div>
         </div>
         <div class="override-group">
-          <div class="override-label">Override 2</div>
+          <div class="override-label">Override 2
+            <span class="info-tip" tabindex="0">i<span class="tip-text">Use overrides for dates when you expect sales to be different from normal — like Prime Day, holidays, or a big promo. Just pick the dates and the units/day fills in automatically from last year's sales for that same time period.</span></span>
+          </div>
           <div class="field">
-            <label>Start date</label>
+            <label>Start date
+              <span class="info-tip" tabindex="0">i<span class="tip-text">First day of the period where sales will be different from your normal daily rate.</span></span>
+            </label>
             <input type="date" id="VEL_OVERRIDE_2_START">
           </div>
           <div class="field">
-            <label>End date</label>
+            <label>End date
+              <span class="info-tip" tabindex="0">i<span class="tip-text">Last day of the override period. Sales go back to your normal rate the day after this.</span></span>
+            </label>
             <input type="date" id="VEL_OVERRIDE_2_END">
           </div>
           <div class="field">
-            <label>Units/day</label>
+            <label>Units/day
+              <span class="info-tip" tabindex="0">i<span class="tip-text">Auto-fills when you pick dates! It looks at what you sold during these same dates last year, then divides by the number of days to get a daily rate. You can always type your own number to override it.</span></span>
+            </label>
             <input type="number" id="VEL_OVERRIDE_2_VALUE" min="0" step="0.1">
           </div>
         </div>
         <div class="override-group">
-          <div class="override-label">Override 3</div>
+          <div class="override-label">Override 3
+            <span class="info-tip" tabindex="0">i<span class="tip-text">Use overrides for dates when you expect sales to be different from normal — like Prime Day, holidays, or a big promo. Just pick the dates and the units/day fills in automatically from last year's sales for that same time period.</span></span>
+          </div>
           <div class="field">
-            <label>Start date</label>
+            <label>Start date
+              <span class="info-tip" tabindex="0">i<span class="tip-text">First day of the period where sales will be different from your normal daily rate.</span></span>
+            </label>
             <input type="date" id="VEL_OVERRIDE_3_START">
           </div>
           <div class="field">
-            <label>End date</label>
+            <label>End date
+              <span class="info-tip" tabindex="0">i<span class="tip-text">Last day of the override period. Sales go back to your normal rate the day after this.</span></span>
+            </label>
             <input type="date" id="VEL_OVERRIDE_3_END">
           </div>
           <div class="field">
-            <label>Units/day</label>
+            <label>Units/day
+              <span class="info-tip" tabindex="0">i<span class="tip-text">Auto-fills when you pick dates! It looks at what you sold during these same dates last year, then divides by the number of days to get a daily rate. You can always type your own number to override it.</span></span>
+            </label>
             <input type="number" id="VEL_OVERRIDE_3_VALUE" min="0" step="0.1">
           </div>
         </div>
@@ -539,7 +565,9 @@
       <div class="section-header">Conversion Rate</div>
       <div class="section-body">
         <div class="field">
-          <label>Conversion rate (%)</label>
+          <label>Conversion rate (%)
+            <span class="info-tip" tabindex="0">i<span class="tip-text">A "what-if" dial for your sales. At 100%, your forecast uses your full daily velocity. Drop it to 80% to see what happens if sales slow down by 20%. Useful for testing worst-case scenarios.</span></span>
+          </label>
           <input type="number" id="CONVERSION_RATE" value="100" min="0" max="100" step="0.1">
         </div>
       </div>
