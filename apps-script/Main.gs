@@ -295,16 +295,11 @@ function refreshGorillaData() {
   // Build the Gorilla Data formula sheet
   buildGorillaDataTab();
 
-  // Rebuild Settings tab to link cells to Gorilla Data
-  buildSettingsTab();
-
-  // NOTE: We intentionally do NOT call recalculateAll() here.
-  // Gorilla ROI formulas resolve asynchronously after the script finishes,
-  // so recalculating now would run against zeros / stale data.
-  // The user should run "Recalculate All" after the Gorilla data populates.
+  // Link Settings cells to Gorilla Data (lightweight — no full rebuild)
+  linkSettingsToGorilla();
 
   ss.toast(
-    'Gorilla Data tab built and Settings linked! Wait ~30s for Gorilla formulas to populate, then run "Recalculate All".',
+    'Gorilla Data linked! Wait ~30s for formulas to populate, then run "Recalculate All".',
     'Done', 10
   );
 }

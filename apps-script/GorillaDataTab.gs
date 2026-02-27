@@ -163,3 +163,46 @@ function buildGorillaDataTab() {
   sheet.setFrozenRows(1);
   SpreadsheetApp.flush();
 }
+
+/**
+ * Lightweight linking: sets IFERROR formulas on existing Settings named ranges
+ * to point at the Gorilla Data tab. Only touches the fields in GORILLA_LINK_MAP
+ * (7 fields × N SKUs), so it runs in seconds instead of minutes.
+ *
+ * Skips any cell that already has a user-typed value (no formula) to preserve
+ * manual overrides.
+ */
+function linkSettingsToGorilla() {
+  var ss   = SpreadsheetApp.getActiveSpreadsheet();
+  var skus = getSkus();
+
+  for (var i = 0; i < skus.length; i++) {
+    var prefix    = namedRangePrefix(skus[i].id);
+    var gorillaRow = i + 2; // SKU index 0 → Gorilla Data row 2
+
+    for (var key in GORILLA_LINK_MAP) {
+      if (!GORILLA_LINK_MAP.hasOwnProperty(key)) continue;
+
+      var rangeName = prefix + '__' + key;
+      var cell = ss.getRangeByName(rangeName);
+      if (!cell) continue;
+
+      // If the cell already has a Gorilla formula, skip (already linked)
+      var existingFormula = cell.getFormula();
+      if (existingFormula && existingFormula.indexOf(GORILLA_DATA_TAB_NAME) > -1) continue;
+
+      // If the cell has a non-zero user-entered value (no formula), skip to preserve override
+      if (!existingFormula) {
+        var val = cell.getValue();
+        if (val !== '' && val !== 0 && val !== null && val !== undefined) continue;
+      }
+
+      var gorillaCol = GORILLA_LINK_MAP[key];
+      cell.setFormula("=IFERROR('" + GORILLA_DATA_TAB_NAME + "'!" + gorillaCol + gorillaRow + ", 0)");
+      cell.setBackground('#E8F0FE');
+      cell.setNote('Auto-populated from Gorilla ROI. Type a number to override.');
+    }
+  }
+
+  SpreadsheetApp.flush();
+}
