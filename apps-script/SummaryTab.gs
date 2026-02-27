@@ -59,6 +59,15 @@ function buildSummaryTab(allResults) {
   var numDays = dates.length;
   var numSkus = allResults.length;
 
+  // Ensure the sheet has enough columns for the calendar grid (1 SKU label + numDays)
+  var requiredCols = numDays + 1;
+  var currentCols = sheet.getMaxColumns();
+  if (requiredCols > currentCols) {
+    sheet.insertColumnsAfter(currentCols, requiredCols - currentCols);
+  } else if (requiredCols < currentCols) {
+    sheet.deleteColumns(requiredCols + 1, currentCols - requiredCols);
+  }
+
   // ── Set column widths upfront (calendar grid needs 48px day columns) ──
   // Doing this early avoids 71 individual API calls later in the function
   // which can contribute to script timeout on the calendar grid section.
