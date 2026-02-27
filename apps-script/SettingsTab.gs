@@ -190,7 +190,13 @@ function buildSettingsTab() {
           savedValues[svPrefix][svKey] = { __isFormula: true, formula: svFormula };
         } else {
           var svVal = svRange.getValue();
-          if (svVal !== '' && svVal !== undefined && svVal !== null) {
+          // Skip saving default-value (0) for Gorilla-linkable fields when Gorilla
+          // is active. If a previous bug overwrote the Gorilla formula with 0,
+          // treating 0 as "no saved value" lets the auto-link branch restore it.
+          var isGorillaField = savedGorillaSellerId && GORILLA_LINK_MAP.hasOwnProperty(svKey);
+          if (isGorillaField && (svVal === 0 || svVal === '0')) {
+            // Don't save — let the auto-link branch re-create the Gorilla formula
+          } else if (svVal !== '' && svVal !== undefined && svVal !== null) {
             savedValues[svPrefix][svKey] = svVal;
           }
         }
@@ -444,6 +450,15 @@ function buildSettingsTab() {
         '=' + fbaPrefix + '__ONHAND_AVAILABLE'
       );
     }
+  }
+
+  // ── Re-link Gorilla fields ──
+  // If Gorilla is configured, run linkSettingsToGorilla() to ensure all
+  // Gorilla-linkable fields have their formulas. This catches cells whose
+  // formulas were previously destroyed (e.g. overwritten with a plain 0)
+  // and weren't restored by the saved-value logic above.
+  if (savedGorillaSellerId) {
+    linkSettingsToGorilla();
   }
 
   // Freeze the title rows and protect structure
