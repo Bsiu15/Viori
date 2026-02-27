@@ -46,41 +46,21 @@
     .sku-actions .btn-remove { color: #d93025; border-color: #d93025; }
     .sku-actions .btn-remove:hover { background: #fce8e6; }
 
-    /* ── Gorilla status banner ── */
-    .gorilla-banner {
-      background: linear-gradient(135deg, #e8f0fe 0%, #d2e3fc 100%);
-      border: 1px solid #a8c7fa;
-      border-radius: 8px;
-      padding: 10px 12px;
-      margin-bottom: 14px;
+    /* ── Gorilla legend — one tiny line ── */
+    .gorilla-legend {
+      font-size: 10px;
+      color: #80868b;
+      margin-bottom: 10px;
       display: none;
     }
-    .gorilla-banner.show { display: block; }
-    .gorilla-banner-title {
-      font-size: 11px;
-      font-weight: 600;
-      color: #1a73e8;
-      margin-bottom: 4px;
-    }
-    .gorilla-banner-legend {
-      display: flex;
-      gap: 14px;
-      font-size: 10px;
-      color: #5f6368;
-    }
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-    .legend-swatch {
+    .gorilla-legend.show { display: flex; align-items: center; gap: 4px; }
+    .gorilla-legend-swatch {
       display: inline-block;
-      width: 12px;
-      height: 12px;
-      border-radius: 3px;
+      width: 3px;
+      height: 14px;
+      background: #1a73e8;
+      border-radius: 2px;
     }
-    .legend-swatch.blue { background: #e8f0fe; border: 1px solid #a8c7fa; }
-    .legend-swatch.amber { background: #fff3cd; border: 1px solid #f9c846; }
 
     /* ── Sections ── */
     .section {
@@ -90,28 +70,14 @@
       overflow: hidden;
     }
     .section-header {
-      background: #e8f0fe;
+      background: #f8f9fa;
       padding: 8px 12px;
       font-weight: 600;
       font-size: 12px;
-      color: #1a73e8;
+      color: #202124;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
     }
-    .section-source {
-      font-size: 9px;
-      font-weight: 700;
-      color: #1a73e8;
-      background: #fff;
-      border-radius: 3px;
-      padding: 2px 6px;
-      letter-spacing: 0.5px;
-      display: none;
-    }
-    .section-source.show { display: inline-block; }
     .section-body { padding: 8px 12px; }
 
     /* ── Fields ── */
@@ -148,42 +114,10 @@
       text-align: left;
     }
 
-    /* ── Gorilla-linked input (blue = live from Amazon) ── */
+    /* ── Gorilla-linked input — subtle left blue border ── */
     .field input.gorilla-linked {
-      background: #e8f0fe;
-      color: #1a73e8;
-      border-color: #a8c7fa;
-      font-weight: 500;
+      border-left: 3px solid #1a73e8;
     }
-
-    /* ── Gorilla warning input (amber = leave at 0) ── */
-    .field input.gorilla-warning {
-      background: #fff3cd;
-      border-color: #f9c846;
-    }
-    .gorilla-warn-wrap {
-      width: 100%;
-      display: none;
-      margin-top: 2px;
-    }
-    .gorilla-warn-wrap.show { display: block; }
-    .gorilla-warn-text {
-      font-size: 10px;
-      color: #b45309;
-      background: #fff3cd;
-      border-radius: 4px;
-      padding: 4px 8px;
-      line-height: 1.4;
-    }
-    .gorilla-warn-reset {
-      font-size: 10px;
-      color: #1a73e8;
-      cursor: pointer;
-      text-decoration: underline;
-      margin-left: 6px;
-      white-space: nowrap;
-    }
-    .gorilla-warn-reset:hover { color: #1557b0; }
 
     /* ── FBA auto-calc field ── */
     .fba-field-wrap {
@@ -191,14 +125,12 @@
       align-items: center;
       gap: 6px;
     }
-    .fba-field-wrap input {
-      width: 100px;
-    }
-    .fba-field-wrap input.auto-calc {
-      background: #e8f0fe;
-      color: #1a73e8;
-      border-color: #a8c7fa;
-      font-weight: 500;
+    .fba-field-wrap input { width: 100px; }
+    .fba-auto-label {
+      font-size: 10px;
+      color: #80868b;
+      font-style: italic;
+      white-space: nowrap;
     }
     .fba-reset {
       font-size: 10px;
@@ -208,12 +140,6 @@
       white-space: nowrap;
     }
     .fba-reset:hover { color: #1557b0; }
-    .fba-auto-label {
-      font-size: 10px;
-      color: #80868b;
-      font-style: italic;
-      white-space: nowrap;
-    }
 
     /* ── Buttons ── */
     .btn-row {
@@ -287,14 +213,6 @@
       color: #1a73e8;
       margin-bottom: 2px;
     }
-    .override-auto-note {
-      font-size: 10px;
-      color: #80868b;
-      font-style: italic;
-      margin-top: 2px;
-      display: none;
-    }
-    .override-auto-note.show { display: block; }
 
     /* ── Expandable inventory categories ── */
     .inv-category {
@@ -331,11 +249,6 @@
     }
     .inv-detail.open { display: block; }
     .inv-detail .field { padding: 4px 0; }
-    .inv-detail .field label {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
 
     /* ── Info tooltip icon ── */
     .info-tip {
@@ -413,32 +326,24 @@
     <button class="btn-remove" onclick="removeSku()">- Remove SKU</button>
   </div>
 
-  <!-- Gorilla status banner — only shown when Gorilla is active -->
-  <div id="gorillaBanner" class="gorilla-banner">
-    <div class="gorilla-banner-title">Connected to Amazon via Gorilla ROI</div>
-    <div class="gorilla-banner-legend">
-      <span class="legend-item"><span class="legend-swatch blue"></span> Live data</span>
-      <span class="legend-item"><span class="legend-swatch amber"></span> Leave at 0</span>
-    </div>
+  <!-- One-line legend, only shown when Gorilla is active -->
+  <div id="gorillaLegend" class="gorilla-legend">
+    <span class="gorilla-legend-swatch"></span>
+    <span>= auto-populated via Gorilla</span>
   </div>
 
   <div id="formContainer">
 
-    <!-- ════════════════════════════════════════════════════════════
-         Starting Inventory — mirrors Amazon Seller Central FBA
-         ════════════════════════════════════════════════════════════ -->
+    <!-- ═══════ Starting Inventory ═══════ -->
     <div class="section">
-      <div class="section-header">
-        <span>Starting Inventory</span>
-        <span class="section-source" id="srcInventory">LIVE</span>
-      </div>
+      <div class="section-header">Starting Inventory</div>
       <div class="section-body">
 
-        <!-- FBA (available for sale) — auto-calc or manual override -->
+        <!-- FBA (available for sale) -->
         <div class="field" style="padding: 8px 0; border-bottom: 2px solid #e8eaed;">
           <label style="font-weight: 600; color: #202124;">
             FBA (available for sale)
-            <span class="info-tip" tabindex="0">i<span class="tip-text">Auto-calculated from On-hand > Available. Type a number to manually override. Click "reset" to go back to auto-calc.</span></span>
+            <span class="info-tip" tabindex="0">i<span class="tip-text">Auto-calculated from On-hand Available. Type a number to override. Click "reset" to go back to auto.</span></span>
           </label>
           <div class="fba-field-wrap">
             <input type="number" id="FBA_OVERRIDE" min="0" oninput="onFbaInput()">
@@ -455,23 +360,20 @@
           </div>
           <div class="inv-detail">
             <div class="field">
-              <label>
-                Working
+              <label>Working
                 <span class="info-tip" tabindex="0">i<span class="tip-text">Units you're preparing to ship to Amazon but haven't sent yet.</span></span>
               </label>
               <input type="number" id="INBOUND_WORKING" value="0" min="0">
             </div>
             <div class="field">
-              <label>
-                Shipped
-                <span class="info-tip" tabindex="0">i<span class="tip-text">Units currently on a truck or carrier heading to Amazon's warehouse.</span></span>
+              <label>Shipped
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units on a truck heading to Amazon's warehouse.</span></span>
               </label>
               <input type="number" id="INBOUND_SHIPPED" value="0" min="0">
             </div>
             <div class="field">
-              <label>
-                Receiving
-                <span class="info-tip" tabindex="0">i<span class="tip-text">Units at Amazon's dock being checked in and shelved. These become available after the check-in delay.</span></span>
+              <label>Receiving
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units at Amazon's dock being checked in and shelved.</span></span>
               </label>
               <input type="number" id="INBOUND_RECEIVING" value="0" min="0">
             </div>
@@ -486,16 +388,14 @@
           </div>
           <div class="inv-detail">
             <div class="field">
-              <label>
-                Available
-                <span class="info-tip" tabindex="0">i<span class="tip-text">Units ready to sell right now. When a customer orders, Amazon picks and ships from these.</span></span>
+              <label>Available
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units ready to sell right now. This is the number FBA auto-calculates from.</span></span>
               </label>
               <input type="number" id="ONHAND_AVAILABLE" value="0" min="0" oninput="updateFbaAuto()">
             </div>
             <div class="field">
-              <label>
-                FC transfer
-                <span class="info-tip" tabindex="0">i<span class="tip-text">Units being moved between Amazon warehouses to be closer to customers. Temporarily unavailable.</span></span>
+              <label>FC transfer
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units being moved between Amazon warehouses. Temporarily unavailable.</span></span>
               </label>
               <input type="number" id="ONHAND_FC_TRANSFER" value="0" min="0">
             </div>
@@ -509,27 +409,17 @@
             <span class="inv-cat-label">Reserved</span>
           </div>
           <div class="inv-detail">
-            <div class="field" style="flex-wrap: wrap;">
-              <label>
-                Customer order
-                <span class="info-tip" tabindex="0">i<span class="tip-text">Units set aside for orders customers already placed but Amazon hasn't shipped yet. These are spoken for.</span></span>
+            <div class="field">
+              <label>Customer order
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units set aside for placed orders. When Gorilla is active, Available already excludes these — leave at 0 to avoid double-subtracting.</span></span>
               </label>
               <input type="number" id="RESERVED_CUSTOMER_ORDER" value="0" min="0">
-              <div class="gorilla-warn-wrap" id="gorilla_warn_RESERVED_CUSTOMER_ORDER">
-                <span class="gorilla-warn-text">Leave at 0 with Gorilla. "Available" already excludes reserved — entering a number here will double-subtract.</span>
-                <span class="gorilla-warn-reset" onclick="resetWarningField('RESERVED_CUSTOMER_ORDER')">Reset to 0</span>
-              </div>
             </div>
-            <div class="field" style="flex-wrap: wrap;">
-              <label>
-                FC processing
-                <span class="info-tip" tabindex="0">i<span class="tip-text">Units being relabeled, prepped, or processed inside Amazon's warehouse. Temporarily unavailable.</span></span>
+            <div class="field">
+              <label>FC processing
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units being relabeled or prepped inside Amazon. When Gorilla is active, these aren't broken out separately — leave at 0 to avoid double-counting.</span></span>
               </label>
               <input type="number" id="RESERVED_FC_PROCESSING" value="0" min="0">
-              <div class="gorilla-warn-wrap" id="gorilla_warn_RESERVED_FC_PROCESSING">
-                <span class="gorilla-warn-text">Leave at 0 with Gorilla. FC processing units aren't broken out — entering a value risks double-counting.</span>
-                <span class="gorilla-warn-reset" onclick="resetWarningField('RESERVED_FC_PROCESSING')">Reset to 0</span>
-              </div>
             </div>
           </div>
         </div>
@@ -537,9 +427,8 @@
         <!-- Researching -->
         <div class="inv-category">
           <div class="field" style="padding: 6px 0;">
-            <label>
-              Researching
-              <span class="info-tip" tabindex="0">i<span class="tip-text">Units Amazon is investigating. They may be misplaced, miscounted, or under review. Manual entry — not tracked by Gorilla.</span></span>
+            <label>Researching
+              <span class="info-tip" tabindex="0">i<span class="tip-text">Units Amazon is investigating — may be misplaced or under review.</span></span>
             </label>
             <input type="number" id="RESEARCHING" value="0" min="0">
           </div>
@@ -553,51 +442,33 @@
           </div>
           <div class="inv-detail">
             <div class="field">
-              <label>
-                Warehouse damaged
-                <span class="info-tip" tabindex="0">i<span class="tip-text">Units damaged while stored in Amazon's warehouse. Amazon may reimburse you for these.</span></span>
-              </label>
+              <label>Warehouse damaged</label>
               <input type="number" id="UNFULFILLABLE_WAREHOUSE_DAMAGED" value="0" min="0">
             </div>
             <div class="field">
-              <label>
-                Defective
-                <span class="info-tip" tabindex="0">i<span class="tip-text">Units flagged as defective and pulled from inventory. Can't be sold as-is.</span></span>
-              </label>
+              <label>Defective</label>
               <input type="number" id="UNFULFILLABLE_DEFECTIVE" value="0" min="0">
             </div>
             <div class="field">
-              <label>
-                Expired
-                <span class="info-tip" tabindex="0">i<span class="tip-text">Units past their expiration or best-by date. Amazon won't sell these.</span></span>
-              </label>
+              <label>Expired</label>
               <input type="number" id="UNFULFILLABLE_EXPIRED" value="0" min="0">
             </div>
             <div class="field">
-              <label>
-                Customer damaged
-                <span class="info-tip" tabindex="0">i<span class="tip-text">Units returned by a customer in damaged condition. Can't be resold.</span></span>
-              </label>
+              <label>Customer damaged</label>
               <input type="number" id="UNFULFILLABLE_CUSTOMER_DAMAGED" value="0" min="0">
             </div>
             <div class="field">
-              <label>
-                Carrier damaged
-                <span class="info-tip" tabindex="0">i<span class="tip-text">Units damaged by the shipping carrier during delivery to the customer.</span></span>
-              </label>
+              <label>Carrier damaged</label>
               <input type="number" id="UNFULFILLABLE_CARRIER_DAMAGED" value="0" min="0">
             </div>
             <div class="field">
-              <label>
-                Distributor damaged
-                <span class="info-tip" tabindex="0">i<span class="tip-text">Units that arrived at Amazon already damaged from your supplier or distributor.</span></span>
-              </label>
+              <label>Distributor damaged</label>
               <input type="number" id="UNFULFILLABLE_DISTRIBUTOR_DAMAGED" value="0" min="0">
             </div>
           </div>
         </div>
 
-        <!-- Forecast config fields -->
+        <!-- Forecast config -->
         <div class="field" style="margin-top: 6px; border-top: 1px solid #e8eaed; padding-top: 8px;">
           <label>FBA check-in delay (days)</label>
           <input type="number" id="FBA_CHECKIN_DELAY" value="7" min="0">
@@ -610,24 +481,19 @@
       </div>
     </div>
 
-    <!-- ════════════════════════════════════════════════════════════
-         Sales Velocity
-         ════════════════════════════════════════════════════════════ -->
+    <!-- ═══════ Sales Velocity ═══════ -->
     <div class="section">
-      <div class="section-header">
-        <span>Sales Velocity</span>
-        <span class="section-source" id="srcVelocity">LIVE</span>
-      </div>
+      <div class="section-header">Sales Velocity</div>
       <div class="section-body">
         <div class="field">
           <label>Daily velocity (units/day)
-            <span class="info-tip" tabindex="0">i<span class="tip-text">How many units you sell per day on average. When Gorilla is connected, this auto-pulls from your recent sales history. You can always type a number to override.</span></span>
+            <span class="info-tip" tabindex="0">i<span class="tip-text">Average units sold per day. Auto-populated from your recent sales history when Gorilla is active. Type a number to override.</span></span>
           </label>
           <input type="number" id="DAILY_VELOCITY" value="0" min="0" step="0.1">
         </div>
         <div class="override-group">
           <div class="override-label">Override 1
-            <span class="info-tip" tabindex="0">i<span class="tip-text">Use overrides for dates when you expect sales to differ from normal — like Prime Day, holidays, or promos. Pick the dates and units/day auto-fills from last year's data.</span></span>
+            <span class="info-tip" tabindex="0">i<span class="tip-text">For dates with unusual sales (Prime Day, holidays, promos). Enter dates and units/day auto-fills from last year.</span></span>
           </div>
           <div class="field">
             <label>Start date</label>
@@ -641,12 +507,9 @@
             <label>Units/day</label>
             <input type="number" id="VEL_OVERRIDE_1_VALUE" min="0" step="0.1">
           </div>
-          <div class="override-auto-note" id="overrideNote1">Auto-calculated from last year's sales for this date range</div>
         </div>
         <div class="override-group">
-          <div class="override-label">Override 2
-            <span class="info-tip" tabindex="0">i<span class="tip-text">Use overrides for dates when you expect sales to differ from normal — like Prime Day, holidays, or promos. Pick the dates and units/day auto-fills from last year's data.</span></span>
-          </div>
+          <div class="override-label">Override 2</div>
           <div class="field">
             <label>Start date</label>
             <input type="date" id="VEL_OVERRIDE_2_START">
@@ -659,12 +522,9 @@
             <label>Units/day</label>
             <input type="number" id="VEL_OVERRIDE_2_VALUE" min="0" step="0.1">
           </div>
-          <div class="override-auto-note" id="overrideNote2">Auto-calculated from last year's sales for this date range</div>
         </div>
         <div class="override-group">
-          <div class="override-label">Override 3
-            <span class="info-tip" tabindex="0">i<span class="tip-text">Use overrides for dates when you expect sales to differ from normal — like Prime Day, holidays, or promos. Pick the dates and units/day auto-fills from last year's data.</span></span>
-          </div>
+          <div class="override-label">Override 3</div>
           <div class="field">
             <label>Start date</label>
             <input type="date" id="VEL_OVERRIDE_3_START">
@@ -677,20 +537,17 @@
             <label>Units/day</label>
             <input type="number" id="VEL_OVERRIDE_3_VALUE" min="0" step="0.1">
           </div>
-          <div class="override-auto-note" id="overrideNote3">Auto-calculated from last year's sales for this date range</div>
         </div>
       </div>
     </div>
 
-    <!-- ════════════════════════════════════════════════════════════
-         Conversion Rate
-         ════════════════════════════════════════════════════════════ -->
+    <!-- ═══════ Conversion Rate ═══════ -->
     <div class="section">
-      <div class="section-header"><span>Conversion Rate</span></div>
+      <div class="section-header">Conversion Rate</div>
       <div class="section-body">
         <div class="field">
           <label>Conversion rate (%)
-            <span class="info-tip" tabindex="0">i<span class="tip-text">A "what-if" dial for your sales. At 100%, your forecast uses your full daily velocity. Drop it to 80% to see what happens if sales slow down by 20%.</span></span>
+            <span class="info-tip" tabindex="0">i<span class="tip-text">A "what-if" dial. At 100%, forecast uses full velocity. Drop to 80% to simulate a 20% sales slowdown.</span></span>
           </label>
           <input type="number" id="CONVERSION_RATE" value="100" min="0" max="100" step="0.1">
         </div>
@@ -699,7 +556,7 @@
 
     <!-- SPD Shipment -->
     <div class="section">
-      <div class="section-header"><span>SPD Shipment</span></div>
+      <div class="section-header">SPD Shipment</div>
       <div class="section-body">
         <div class="field">
           <label>Units</label>
@@ -718,7 +575,7 @@
 
     <!-- LTL Shipment -->
     <div class="section">
-      <div class="section-header"><span>LTL Shipment</span></div>
+      <div class="section-header">LTL Shipment</div>
       <div class="section-body">
         <div class="field">
           <label>Units</label>
@@ -737,7 +594,7 @@
 
     <!-- DTC Bridge -->
     <div class="section">
-      <div class="section-header"><span>DTC Bridge</span></div>
+      <div class="section-header">DTC Bridge</div>
       <div class="section-body">
         <div class="field">
           <label>Units</label>
@@ -756,7 +613,7 @@
 
     <!-- Ad-hoc Shipment -->
     <div class="section">
-      <div class="section-header"><span>Ad-hoc Shipment</span></div>
+      <div class="section-header">Ad-hoc Shipment</div>
       <div class="section-body">
         <div class="field">
           <label>Units</label>
@@ -773,18 +630,12 @@
       </div>
     </div>
 
-    <!-- ════════════════════════════════════════════════════════════
-         Financials
-         ════════════════════════════════════════════════════════════ -->
+    <!-- ═══════ Financials ═══════ -->
     <div class="section">
-      <div class="section-header">
-        <span>Financials</span>
-        <span class="section-source" id="srcFinancials">LIVE</span>
-      </div>
+      <div class="section-header">Financials</div>
       <div class="section-body">
         <div class="field">
-          <label>
-            Selling price
+          <label>Selling price
             <span class="info-tip" tabindex="0">i<span class="tip-text">Your Amazon selling price per unit. Used to calculate lost revenue during OOS days.</span></span>
           </label>
           <div class="currency-wrap">
@@ -793,9 +644,8 @@
           </div>
         </div>
         <div class="field">
-          <label>
-            DPP margin
-            <span class="info-tip" tabindex="0">i<span class="tip-text">Direct Product Profitability margin as a percentage. Used to calculate lost profit dollars during OOS days.</span></span>
+          <label>DPP margin
+            <span class="info-tip" tabindex="0">i<span class="tip-text">Direct Product Profitability margin %. Used to calculate lost profit during OOS days.</span></span>
           </label>
           <div class="percent-wrap">
             <input type="number" id="DPP_MARGIN" min="0" max="100" step="0.1">
@@ -803,9 +653,8 @@
           </div>
         </div>
         <div class="field">
-          <label>
-            Past OOS days
-            <span class="info-tip" tabindex="0">i<span class="tip-text">Number of OOS days already experienced before today. Used to calculate "Already Lost" revenue in the financial impact tables.</span></span>
+          <label>Past OOS days
+            <span class="info-tip" tabindex="0">i<span class="tip-text">OOS days already experienced before today. Used to calculate "Already Lost" revenue.</span></span>
           </label>
           <input type="number" id="PAST_OOS_DAYS" value="0" min="0">
         </div>
@@ -824,26 +673,11 @@
   <script>
     // ── State ──
     var fbaIsAuto = true;
-
-    // Fields known to be Gorilla-linked for the current SKU
     var currentGorillaFields = [];
-    // Fields known to be Gorilla warning for the current SKU
-    var currentWarningFields = [];
-    // One-time warning acknowledgement per field
-    var warningAcknowledged = {};
-    // Whether Gorilla is globally active
     var isGorillaActive = false;
 
-    // Inventory fields that Gorilla can provide (keys from GORILLA_LINK_MAP)
-    var GORILLA_INVENTORY_FIELDS = [
-      'ONHAND_AVAILABLE', 'INBOUND_WORKING', 'INBOUND_SHIPPED',
-      'INBOUND_RECEIVING', 'ONHAND_FC_TRANSFER'
-    ];
-    var GORILLA_VELOCITY_FIELDS = ['DAILY_VELOCITY'];
-    var GORILLA_FINANCIAL_FIELDS = ['SELLING_PRICE'];
-    var GORILLA_OVERRIDE_FIELDS = [
-      'VEL_OVERRIDE_1_VALUE', 'VEL_OVERRIDE_2_VALUE', 'VEL_OVERRIDE_3_VALUE'
-    ];
+    // Warning fields — locked to 0 when Gorilla is active
+    var GORILLA_WARNING_FIELDS = ['RESERVED_CUSTOMER_ORDER', 'RESERVED_FC_PROCESSING'];
 
     // ── Tooltip positioning ──
     (function() {
@@ -854,9 +688,7 @@
         var top = iconRect.bottom + 6;
         var left = iconRect.left - (tipWidth / 2) + (iconRect.width / 2);
         if (left < pad) left = pad;
-        if (left + tipWidth > window.innerWidth - pad) {
-          left = window.innerWidth - tipWidth - pad;
-        }
+        if (left + tipWidth > window.innerWidth - pad) left = window.innerWidth - tipWidth - pad;
         if (top + 80 > window.innerHeight) {
           top = iconRect.top - 6;
           tipEl.style.transform = 'translateY(-100%)';
@@ -868,15 +700,11 @@
       }
       document.addEventListener('mouseover', function(e) {
         var icon = e.target.closest('.info-tip');
-        if (!icon) return;
-        var tip = icon.querySelector('.tip-text');
-        if (tip) positionTip(tip, icon);
+        if (icon) { var tip = icon.querySelector('.tip-text'); if (tip) positionTip(tip, icon); }
       });
       document.addEventListener('focusin', function(e) {
         var icon = e.target.closest('.info-tip');
-        if (!icon) return;
-        var tip = icon.querySelector('.tip-text');
-        if (tip) positionTip(tip, icon);
+        if (icon) { var tip = icon.querySelector('.tip-text'); if (tip) positionTip(tip, icon); }
       });
     })();
 
@@ -884,27 +712,19 @@
     function toggleCat(header) {
       var detail = header.nextElementSibling;
       var chevron = header.querySelector('.inv-chevron');
-      var isOpen = detail.classList.contains('open');
-      if (isOpen) {
-        detail.classList.remove('open');
-        chevron.classList.remove('open');
-      } else {
-        detail.classList.add('open');
-        chevron.classList.add('open');
-      }
+      detail.classList.toggle('open');
+      chevron.classList.toggle('open');
     }
 
     // ── FBA auto-calc ──
     function updateFbaAuto() {
       if (!fbaIsAuto) return;
-      var avail = document.getElementById('ONHAND_AVAILABLE').value;
-      document.getElementById('FBA_OVERRIDE').value = avail || '0';
+      document.getElementById('FBA_OVERRIDE').value = document.getElementById('ONHAND_AVAILABLE').value || '0';
     }
 
     function onFbaInput() {
       fbaIsAuto = false;
       var fbaEl = document.getElementById('FBA_OVERRIDE');
-      fbaEl.classList.remove('auto-calc');
       fbaEl.classList.remove('gorilla-linked');
       document.getElementById('fbaAutoLabel').style.display = 'none';
       document.getElementById('fbaReset').style.display = 'inline';
@@ -914,11 +734,9 @@
       fbaIsAuto = true;
       var fbaEl = document.getElementById('FBA_OVERRIDE');
       fbaEl.value = '';
-      fbaEl.classList.add('auto-calc');
       document.getElementById('fbaAutoLabel').style.display = 'inline';
       document.getElementById('fbaReset').style.display = 'none';
       updateFbaAuto();
-      // Re-apply Gorilla styling if source is Gorilla-linked
       if (currentGorillaFields.indexOf('ONHAND_AVAILABLE') > -1) {
         fbaEl.classList.add('gorilla-linked');
       }
@@ -928,27 +746,38 @@
       var fbaEl = document.getElementById('FBA_OVERRIDE');
       if (hasOverride) {
         fbaIsAuto = false;
-        fbaEl.classList.remove('auto-calc');
         fbaEl.classList.remove('gorilla-linked');
         document.getElementById('fbaAutoLabel').style.display = 'none';
         document.getElementById('fbaReset').style.display = 'inline';
       } else {
         fbaIsAuto = true;
-        fbaEl.classList.add('auto-calc');
         document.getElementById('fbaAutoLabel').style.display = 'inline';
         document.getElementById('fbaReset').style.display = 'none';
         updateFbaAuto();
-        // If ONHAND_AVAILABLE is Gorilla-linked, FBA inherits the blue style
         if (currentGorillaFields.indexOf('ONHAND_AVAILABLE') > -1) {
           fbaEl.classList.add('gorilla-linked');
         }
       }
     }
 
-    // ── Warning field reset ──
-    function resetWarningField(fieldId) {
-      var el = document.getElementById(fieldId);
-      if (el) {
+    // ── Warning field guard — only fires when user tries to change from 0 ──
+    function guardWarningField(e) {
+      var el = e.target;
+      if (!isGorillaActive) return;
+      if (GORILLA_WARNING_FIELDS.indexOf(el.id) === -1) return;
+
+      // Only warn when changing from 0 to something
+      var val = parseFloat(el.value) || 0;
+      if (val === 0) return;
+
+      var proceed = confirm(
+        'Are you sure?\n\n' +
+        'Gorilla is active — Amazon\'s "Available" already excludes reserved units. ' +
+        'Entering a number here will double-subtract from your forecast.\n\n' +
+        'Click OK to keep your value, or Cancel to reset to 0.'
+      );
+
+      if (!proceed) {
         el.value = '0';
       }
     }
@@ -984,9 +813,7 @@
       'ADHOC_SEND_DATE'
     ];
 
-    function isDateField(id) {
-      return DATE_FIELDS.indexOf(id) > -1;
-    }
+    function isDateField(id) { return DATE_FIELDS.indexOf(id) > -1; }
 
     // ── SKU dropdown init ──
     google.script.run.withSuccessHandler(function(skus) {
@@ -1001,140 +828,46 @@
       loadSku();
     }).getSkuList();
 
-    // ── Gorilla styling ──
+    // ── Gorilla styling — just the subtle left borders ──
 
     function clearGorillaStyles() {
       for (var i = 0; i < FIELD_IDS.length; i++) {
         var el = document.getElementById(FIELD_IDS[i]);
-        if (el) {
-          el.classList.remove('gorilla-linked');
-          el.classList.remove('gorilla-warning');
-          el.removeEventListener('focus', onWarningFieldFocus);
-        }
+        if (el) el.classList.remove('gorilla-linked');
       }
-      // Hide all warning wraps
-      var warns = document.querySelectorAll('.gorilla-warn-wrap');
-      for (var w = 0; w < warns.length; w++) {
-        warns[w].classList.remove('show');
-      }
-      // Hide section source tags
-      var tags = document.querySelectorAll('.section-source');
-      for (var t = 0; t < tags.length; t++) {
-        tags[t].classList.remove('show');
-      }
-      // Hide override auto-notes
-      var notes = document.querySelectorAll('.override-auto-note');
-      for (var n = 0; n < notes.length; n++) {
-        notes[n].classList.remove('show');
-      }
-      // Hide banner
-      document.getElementById('gorillaBanner').classList.remove('show');
-
+      document.getElementById('gorillaLegend').classList.remove('show');
       currentGorillaFields = [];
-      currentWarningFields = [];
-      warningAcknowledged = {};
       isGorillaActive = false;
     }
 
-    function onWarningFieldFocus(e) {
-      var fieldId = e.target.id;
-      if (!fieldId || currentWarningFields.indexOf(fieldId) === -1) return;
-      if (warningAcknowledged[fieldId]) return;
-
-      var proceed = confirm(
-        'Double-Count Warning\n\n' +
-        'Gorilla is active. Amazon\'s "Available" already excludes reserved units, ' +
-        'so entering a number here will subtract those units twice from your forecast.\n\n' +
-        'Are you sure you want to edit this field?'
-      );
-
-      if (proceed) {
-        warningAcknowledged[fieldId] = true;
-      } else {
-        e.target.blur();
-      }
-    }
-
-    function applyGorillaStyles(gorillaFields, warningFields, gorillaActive) {
+    function applyGorillaStyles(gorillaFields, gorillaActive) {
       currentGorillaFields = gorillaFields || [];
       isGorillaActive = gorillaActive || false;
 
-      if (!isGorillaActive) return;
+      if (!isGorillaActive || currentGorillaFields.length === 0) return;
 
-      // Show the top-level banner
-      document.getElementById('gorillaBanner').classList.add('show');
+      // Show the one-line legend
+      document.getElementById('gorillaLegend').classList.add('show');
 
-      // Apply blue background to all Gorilla-linked input fields
+      // Apply subtle left blue border to all Gorilla-linked inputs
       for (var i = 0; i < currentGorillaFields.length; i++) {
-        var fieldId = currentGorillaFields[i];
-        var el = document.getElementById(fieldId);
-        if (el) {
-          el.classList.add('gorilla-linked');
-        }
+        var el = document.getElementById(currentGorillaFields[i]);
+        if (el) el.classList.add('gorilla-linked');
       }
 
-      // FBA: if ONHAND_AVAILABLE is Gorilla-linked and FBA is in auto mode, mark FBA blue too
+      // FBA inherits blue border when auto-calculating from Gorilla-linked Available
       if (currentGorillaFields.indexOf('ONHAND_AVAILABLE') > -1 && fbaIsAuto) {
         var fbaEl = document.getElementById('FBA_OVERRIDE');
         if (fbaEl) fbaEl.classList.add('gorilla-linked');
       }
 
-      // Show section-level LIVE tags based on which fields are Gorilla-linked
-      var hasInventory = false;
-      for (var gi = 0; gi < GORILLA_INVENTORY_FIELDS.length; gi++) {
-        if (currentGorillaFields.indexOf(GORILLA_INVENTORY_FIELDS[gi]) > -1) {
-          hasInventory = true;
-          break;
-        }
-      }
-      if (hasInventory) {
-        document.getElementById('srcInventory').classList.add('show');
-      }
-
-      var hasVelocity = false;
-      var allVelFields = GORILLA_VELOCITY_FIELDS.concat(GORILLA_OVERRIDE_FIELDS);
-      for (var gv = 0; gv < allVelFields.length; gv++) {
-        if (currentGorillaFields.indexOf(allVelFields[gv]) > -1) {
-          hasVelocity = true;
-          break;
-        }
-      }
-      if (hasVelocity) {
-        document.getElementById('srcVelocity').classList.add('show');
-      }
-
-      var hasFinancials = false;
-      for (var gf = 0; gf < GORILLA_FINANCIAL_FIELDS.length; gf++) {
-        if (currentGorillaFields.indexOf(GORILLA_FINANCIAL_FIELDS[gf]) > -1) {
-          hasFinancials = true;
-          break;
-        }
-      }
-      if (hasFinancials) {
-        document.getElementById('srcFinancials').classList.add('show');
-      }
-
-      // Show override auto-notes for velocity override VALUE fields that are Gorilla-linked
-      for (var ov = 1; ov <= 3; ov++) {
-        if (currentGorillaFields.indexOf('VEL_OVERRIDE_' + ov + '_VALUE') > -1) {
-          var noteEl = document.getElementById('overrideNote' + ov);
-          if (noteEl) noteEl.classList.add('show');
-        }
-      }
-
-      // Apply warning styling
-      currentWarningFields = warningFields || [];
-      warningAcknowledged = {};
-      for (var j = 0; j < currentWarningFields.length; j++) {
-        var wFieldId = currentWarningFields[j];
-        var wEl = document.getElementById(wFieldId);
+      // Force warning fields to 0 when Gorilla is active
+      for (var w = 0; w < GORILLA_WARNING_FIELDS.length; w++) {
+        var wEl = document.getElementById(GORILLA_WARNING_FIELDS[w]);
         if (wEl) {
-          wEl.classList.add('gorilla-warning');
-          wEl.addEventListener('focus', onWarningFieldFocus);
+          var val = parseFloat(wEl.value) || 0;
+          if (val !== 0) wEl.value = '0';
         }
-        // Show inline warning wrap
-        var warnWrap = document.getElementById('gorilla_warn_' + wFieldId);
-        if (warnWrap) warnWrap.classList.add('show');
       }
     }
 
@@ -1147,10 +880,8 @@
       google.script.run.withSuccessHandler(function(result) {
         var values = result.values;
         var gorillaFields = result.gorillaFields || [];
-        var warningFields = result.gorillaWarningFields || [];
         var gorillaActive = result.gorillaActive || false;
 
-        // Clear previous styling
         clearGorillaStyles();
 
         // Populate form fields
@@ -1163,10 +894,7 @@
             if (val && val !== '') {
               var d = new Date(val);
               if (!isNaN(d.getTime())) {
-                var yyyy = d.getFullYear();
-                var mm = String(d.getMonth() + 1).padStart(2, '0');
-                var dd = String(d.getDate()).padStart(2, '0');
-                el.value = yyyy + '-' + mm + '-' + dd;
+                el.value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
               } else {
                 el.value = '';
               }
@@ -1178,12 +906,21 @@
           }
         }
 
-        // Apply Gorilla visual indicators (banner, blue fields, warnings, section tags)
-        applyGorillaStyles(gorillaFields, warningFields, gorillaActive);
+        // Apply Gorilla visual indicators
+        applyGorillaStyles(gorillaFields, gorillaActive);
 
         // Set FBA field state
         var fbaVal = values['FBA_OVERRIDE'];
         setFbaVisualState(fbaVal !== null && fbaVal !== undefined && fbaVal !== '');
+
+        // Attach warning field guards
+        for (var w = 0; w < GORILLA_WARNING_FIELDS.length; w++) {
+          var wEl = document.getElementById(GORILLA_WARNING_FIELDS[w]);
+          if (wEl) {
+            wEl.removeEventListener('change', guardWarningField);
+            wEl.addEventListener('change', guardWarningField);
+          }
+        }
 
         hideStatus();
       }).withFailureHandler(function(err) {
@@ -1200,11 +937,7 @@
         if (!el) continue;
 
         if (id === 'FBA_OVERRIDE') {
-          if (fbaIsAuto) {
-            values[id] = null;
-          } else {
-            values[id] = el.value !== '' ? Number(el.value) : null;
-          }
+          values[id] = fbaIsAuto ? null : (el.value !== '' ? Number(el.value) : null);
         } else if (isDateField(id)) {
           values[id] = el.value || null;
         } else {
@@ -1218,11 +951,10 @@
     function saveSku() {
       var skuId = document.getElementById('skuSelect').value;
       var values = collectValues();
-
       showStatus('<span class="spinner"></span> Saving...', '');
 
       google.script.run.withSuccessHandler(function() {
-        showStatus('<span class="spinner"></span> Recalculating SKU...', '');
+        showStatus('<span class="spinner"></span> Recalculating...', '');
         google.script.run.withSuccessHandler(function() {
           showStatus('Saved and recalculated', 'success');
         }).withFailureHandler(function(err) {
@@ -1236,11 +968,10 @@
     function saveAndRecalc() {
       var skuId = document.getElementById('skuSelect').value;
       var values = collectValues();
-
       showStatus('<span class="spinner"></span> Saving...', '');
 
       google.script.run.withSuccessHandler(function() {
-        showStatus('<span class="spinner"></span> Recalculating all tabs...', '');
+        showStatus('<span class="spinner"></span> Recalculating all...', '');
         google.script.run.withSuccessHandler(function() {
           showStatus('Saved and recalculated all', 'success');
         }).withFailureHandler(function(err) {
@@ -1257,15 +988,11 @@
       if (!skuId) return;
       var skuName = prompt('Enter the SKU display name (e.g., New Product Shampoo Bar):');
       if (!skuName) return;
-
       showStatus('<span class="spinner"></span> Adding SKU...', '');
 
       google.script.run.withSuccessHandler(function(error) {
-        if (error) {
-          showStatus(error, 'error');
-          return;
-        }
-        showStatus('SKU added! Reloading...', 'success');
+        if (error) { showStatus(error, 'error'); return; }
+        showStatus('SKU added!', 'success');
         google.script.run.withSuccessHandler(function(skus) {
           var sel = document.getElementById('skuSelect');
           sel.innerHTML = '';
@@ -1286,18 +1013,12 @@
     function removeSku() {
       var skuId = document.getElementById('skuSelect').value;
       if (!skuId) return;
-
-      var confirmed = confirm('Remove SKU "' + skuId + '"?\n\nThis will delete its detail tab and all saved settings. This cannot be undone.');
-      if (!confirmed) return;
-
-      showStatus('<span class="spinner"></span> Removing SKU...', '');
+      if (!confirm('Remove SKU "' + skuId + '"?\n\nThis will delete its detail tab and all saved settings.')) return;
+      showStatus('<span class="spinner"></span> Removing...', '');
 
       google.script.run.withSuccessHandler(function(error) {
-        if (error) {
-          showStatus(error, 'error');
-          return;
-        }
-        showStatus('SKU removed! Reloading...', 'success');
+        if (error) { showStatus(error, 'error'); return; }
+        showStatus('SKU removed!', 'success');
         google.script.run.withSuccessHandler(function(skus) {
           var sel = document.getElementById('skuSelect');
           sel.innerHTML = '';
