@@ -23,7 +23,11 @@ var GORILLA_LINK_MAP = {
   'INBOUND_WORKING':         'C',
   'INBOUND_SHIPPED':         'D',
   'INBOUND_RECEIVING':       'E',
-  'RESERVED_CUSTOMER_ORDER': 'F',
+  // NOTE: Reserved (col F) is intentionally NOT linked to Settings.
+  // Gorilla's "reserved" is the TOTAL of all reserved types (customer orders +
+  // FC processing + FC transfer). Amazon's "fulfillable" already excludes reserved
+  // units, so linking this would double-subtract from the forecast. The column
+  // stays on the Gorilla Data tab as a reference number only.
   'ONHAND_FC_TRANSFER':      'G',
   'DAILY_VELOCITY':          'J',
   'SELLING_PRICE':           'K'
@@ -200,9 +204,13 @@ function buildGorillaDataTab() {
     'Reserved = Units set aside and temporarily unavailable for new orders.\n' +
     'Includes units in customer orders being packed, being moved between\n' +
     'warehouses, or being processed. They\'re yours, just busy.\n\n' +
-    'Settings field: "Reserved: Customer order"\n' +
-    'Note: Gorilla gives the total reserved number. The Settings tab breaks\n' +
-    'this into sub-categories (customer order, FC processing) if you need detail.'
+    'REFERENCE ONLY — not linked to Settings.\n' +
+    'Why: Gorilla gives the TOTAL reserved (customer orders + FC processing +\n' +
+    'FC transfer combined). The "Available" column already excludes these units,\n' +
+    'so linking this would double-subtract from your forecast.\n\n' +
+    'Leave "Reserved: Customer order" at 0 in Settings when using Gorilla.\n' +
+    'FC Transfer is handled separately (col G) and flows into the forecast\n' +
+    'as units that become available after the check-in delay.'
   );
   sheet.getRange(1, 7).setNote(
     'FC Transfer = Units being moved from one Amazon warehouse to another.\n' +
@@ -246,7 +254,7 @@ function buildGorillaDataTab() {
 /**
  * Lightweight linking: sets IFERROR formulas on existing Settings named ranges
  * to point at the Gorilla Data tab. Only touches the fields in GORILLA_LINK_MAP
- * (8 fields × N SKUs), so it runs in seconds instead of minutes.
+ * (7 fields × N SKUs), so it runs in seconds instead of minutes.
  *
  * Skips any cell that already has a user-typed value (no formula) to preserve
  * manual overrides.
