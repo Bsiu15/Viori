@@ -895,6 +895,10 @@
 
     // Track which fields are currently Gorilla-linked for this SKU
     var currentGorillaFields = [];
+    // Track which fields are Gorilla warning fields for this SKU
+    var currentWarningFields = [];
+    // Track which warning fields have already been acknowledged (so we only warn once per load)
+    var warningAcknowledged = {};
 
     // Clear all Gorilla styling from input fields
     function clearGorillaStyles() {
@@ -903,6 +907,7 @@
         if (el) {
           el.classList.remove('gorilla-linked');
           el.classList.remove('gorilla-warning');
+          el.removeEventListener('focus', onWarningFieldFocus);
         }
       }
       // Hide all gorilla badges
@@ -914,6 +919,28 @@
       var warns = document.querySelectorAll('.gorilla-warn-text');
       for (var w = 0; w < warns.length; w++) {
         warns[w].classList.remove('show');
+      }
+      currentWarningFields = [];
+      warningAcknowledged = {};
+    }
+
+    // Handle focus on a Gorilla warning field — show one-time confirm dialog
+    function onWarningFieldFocus(e) {
+      var fieldId = e.target.id;
+      if (!fieldId || currentWarningFields.indexOf(fieldId) === -1) return;
+      if (warningAcknowledged[fieldId]) return;
+
+      var proceed = confirm(
+        'Double-Count Warning\n\n' +
+        'Gorilla is active. Amazon\'s "Available" already excludes reserved units, ' +
+        'so entering a number here will subtract those units twice from your forecast.\n\n' +
+        'Are you sure you want to edit this field?'
+      );
+
+      if (proceed) {
+        warningAcknowledged[fieldId] = true;
+      } else {
+        e.target.blur();
       }
     }
 
@@ -929,12 +956,16 @@
           if (badge) badge.classList.add('show');
         }
       }
-      var wf = warningFields || [];
-      for (var j = 0; j < wf.length; j++) {
-        var wEl = document.getElementById(wf[j]);
-        if (wEl) wEl.classList.add('gorilla-warning');
+      currentWarningFields = warningFields || [];
+      warningAcknowledged = {};
+      for (var j = 0; j < currentWarningFields.length; j++) {
+        var wEl = document.getElementById(currentWarningFields[j]);
+        if (wEl) {
+          wEl.classList.add('gorilla-warning');
+          wEl.addEventListener('focus', onWarningFieldFocus);
+        }
         // Show inline warning text if it exists
-        var warnText = document.getElementById('gorilla_warn_' + wf[j]);
+        var warnText = document.getElementById('gorilla_warn_' + currentWarningFields[j]);
         if (warnText) warnText.classList.add('show');
       }
     }

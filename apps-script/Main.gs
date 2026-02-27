@@ -595,6 +595,22 @@ function onEditTrigger(e) {
     );
   }
 
+  // ── Double-counting warning ──
+  // If the user types into an amber warning cell (reserved fields), warn them.
+  if (bg === '#fff3cd') {
+    var editVal = cell.getValue();
+    if (editVal !== 0 && editVal !== '' && editVal !== null) {
+      var ss2 = SpreadsheetApp.getActiveSpreadsheet();
+      ss2.toast(
+        'Double-count risk: Gorilla\'s "Available" already excludes reserved units. ' +
+        'Entering a non-zero value here may double-subtract from your forecast. ' +
+        'Set to 0 unless you\'re sure this won\'t overlap.',
+        '⚠ Double-Count Warning',
+        10
+      );
+    }
+  }
+
   // Debounce: use a lock to prevent overlapping recalculations
   var lock = LockService.getScriptLock();
   var acquired = lock.tryLock(2000);
