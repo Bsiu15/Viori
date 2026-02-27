@@ -402,7 +402,23 @@
           </div>
         </div>
 
-        <!-- Reserved (hidden when Gorilla active — forced to 0) -->
+        <!-- Gorilla: Reserved (total) — shown only when Gorilla active -->
+        <div class="field gorilla-only" id="fieldReservedTotal" style="display:none;">
+          <label>Reserved
+            <span class="info-tip" tabindex="0">i<span class="tip-text">Total reserved units from Gorilla. Display-only — Available already excludes reserved, so this doesn't affect the forecast.</span></span>
+          </label>
+          <input type="number" id="RESERVED_TOTAL" value="0" min="0">
+        </div>
+
+        <!-- Gorilla: Unsellable (total) — shown only when Gorilla active -->
+        <div class="field gorilla-only" id="fieldUnsellableTotal" style="display:none;">
+          <label>Unsellable
+            <span class="info-tip" tabindex="0">i<span class="tip-text">Total unsellable/unfulfillable units from Gorilla.</span></span>
+          </label>
+          <input type="number" id="UNSELLABLE_TOTAL" value="0" min="0">
+        </div>
+
+        <!-- Reserved breakdown (hidden when Gorilla active — forecast uses 0 to avoid double-count) -->
         <div class="inv-category" id="catReserved">
           <div class="inv-category-header" onclick="toggleCat(this)">
             <span class="inv-chevron">&#9654;</span>
@@ -652,11 +668,15 @@
       <div class="section-body">
         <div class="field">
           <label>Selling price
-            <span class="info-tip" tabindex="0">i<span class="tip-text">Your Amazon selling price per unit. Used to calculate lost revenue during OOS days.</span></span>
+            <span class="info-tip" tabindex="0">i<span class="tip-text">Your Amazon selling price per unit. Auto-populated from Gorilla when active. Used to calculate lost revenue during OOS days.</span></span>
           </label>
-          <div class="currency-wrap">
-            <span class="prefix">$</span>
-            <input type="number" id="SELLING_PRICE" min="0" step="0.01">
+          <div class="auto-field-wrap">
+            <div class="currency-wrap">
+              <span class="prefix">$</span>
+              <input type="number" id="SELLING_PRICE" min="0" step="0.01" oninput="onSellingPriceInput()">
+            </div>
+            <span id="priceAutoLabel" class="auto-label" style="display:none;">auto</span>
+            <span id="priceReset" class="auto-reset" style="display:none;" onclick="resetSellingPrice()">reset</span>
           </div>
         </div>
         <div class="field">
@@ -692,18 +712,22 @@
     var currentGorillaFields = [];
     var isGorillaActive = false;
 
-    // Fields that don't affect the forecast — hidden when Gorilla is active
+    // Fields whose manual breakdowns are hidden when Gorilla is active
+    // (replaced by Gorilla totals for Reserved and Unsellable)
     var DISPLAY_ONLY_FIELDS = [
-      'INBOUND_WORKING', 'INBOUND_SHIPPED', 'RESEARCHING',
+      'RESEARCHING',
       'UNFULFILLABLE_WAREHOUSE_DAMAGED', 'UNFULFILLABLE_DEFECTIVE', 'UNFULFILLABLE_EXPIRED',
       'UNFULFILLABLE_CUSTOMER_DAMAGED', 'UNFULFILLABLE_CARRIER_DAMAGED', 'UNFULFILLABLE_DISTRIBUTOR_DAMAGED'
     ];
     // Fields forced to 0 when Gorilla is active (double-count risk)
     var ZERO_WHEN_GORILLA = ['RESERVED_CUSTOMER_ORDER', 'RESERVED_FC_PROCESSING'];
-    // DOM elements to hide when Gorilla is active
+    // DOM elements to HIDE when Gorilla is active (manual breakdowns)
     var GORILLA_HIDE_IDS = [
-      'fieldInboundWorking', 'fieldInboundShipped',
       'catReserved', 'catResearching', 'catUnfulfillable'
+    ];
+    // DOM elements to SHOW when Gorilla is active (Gorilla totals)
+    var GORILLA_SHOW_IDS = [
+      'fieldReservedTotal', 'fieldUnsellableTotal'
     ];
 
     // ── Tooltip positioning ──
@@ -787,6 +811,25 @@
       }
     }
 
+    // ── Selling price auto/reset ──
+    var priceGorillaOriginal = null;
+
+    function onSellingPriceInput() {
+      if (currentGorillaFields.indexOf('SELLING_PRICE') === -1) return;
+      var el = document.getElementById('SELLING_PRICE');
+      el.classList.remove('gorilla-linked');
+      document.getElementById('priceAutoLabel').style.display = 'none';
+      document.getElementById('priceReset').style.display = 'inline';
+    }
+
+    function resetSellingPrice() {
+      var el = document.getElementById('SELLING_PRICE');
+      if (priceGorillaOriginal !== null) el.value = priceGorillaOriginal;
+      el.classList.add('gorilla-linked');
+      document.getElementById('priceAutoLabel').style.display = 'inline';
+      document.getElementById('priceReset').style.display = 'none';
+    }
+
     // ── Velocity auto — tracks which velocity fields are Gorilla-linked ──
     // Stores the original Gorilla values so we can detect manual changes on save
     var velGorillaOriginal = {};
@@ -858,6 +901,19 @@
       }
     }
 
+    function applySellingPriceAutoState(gorillaFields) {
+      priceGorillaOriginal = null;
+      if (gorillaFields.indexOf('SELLING_PRICE') > -1) {
+        var priceEl = document.getElementById('SELLING_PRICE');
+        priceGorillaOriginal = priceEl.value;
+        document.getElementById('priceAutoLabel').style.display = 'inline';
+        document.getElementById('priceReset').style.display = 'none';
+      } else {
+        document.getElementById('priceAutoLabel').style.display = 'none';
+        document.getElementById('priceReset').style.display = 'none';
+      }
+    }
+
     // ── Field ID lists ──
     var FIELD_IDS = [
       'FBA_OVERRIDE',
@@ -867,6 +923,7 @@
       'RESEARCHING',
       'UNFULFILLABLE_WAREHOUSE_DAMAGED', 'UNFULFILLABLE_DEFECTIVE', 'UNFULFILLABLE_EXPIRED',
       'UNFULFILLABLE_CUSTOMER_DAMAGED', 'UNFULFILLABLE_CARRIER_DAMAGED', 'UNFULFILLABLE_DISTRIBUTOR_DAMAGED',
+      'RESERVED_TOTAL', 'UNSELLABLE_TOTAL',
       'FBA_CHECKIN_DELAY', 'FBM_ONHAND',
       'DAILY_VELOCITY',
       'VEL_OVERRIDE_1_START', 'VEL_OVERRIDE_1_END', 'VEL_OVERRIDE_1_VALUE',
@@ -912,10 +969,15 @@
         if (el) el.classList.remove('gorilla-linked');
       }
       document.getElementById('gorillaLegend').classList.remove('show');
-      // Show all hidden sections
+      // Show all manual breakdown sections
       for (var h = 0; h < GORILLA_HIDE_IDS.length; h++) {
         var hEl = document.getElementById(GORILLA_HIDE_IDS[h]);
         if (hEl) hEl.style.display = '';
+      }
+      // Hide Gorilla-only elements
+      for (var s = 0; s < GORILLA_SHOW_IDS.length; s++) {
+        var sEl = document.getElementById(GORILLA_SHOW_IDS[s]);
+        if (sEl) sEl.style.display = 'none';
       }
       // Reset velocity auto labels
       document.getElementById('velAutoLabel').style.display = 'none';
@@ -924,6 +986,9 @@
         document.getElementById('ovr' + n + 'AutoLabel').style.display = 'none';
         document.getElementById('ovr' + n + 'Reset').style.display = 'none';
       }
+      // Reset selling price auto label
+      document.getElementById('priceAutoLabel').style.display = 'none';
+      document.getElementById('priceReset').style.display = 'none';
       currentGorillaFields = [];
       isGorillaActive = false;
     }
@@ -949,17 +1014,19 @@
         if (fbaEl) fbaEl.classList.add('gorilla-linked');
       }
 
-      // Hide display-only sections and zero out their fields
+      // Show Gorilla-only elements (Reserved total, Unsellable total)
+      for (var s = 0; s < GORILLA_SHOW_IDS.length; s++) {
+        var sEl = document.getElementById(GORILLA_SHOW_IDS[s]);
+        if (sEl) sEl.style.display = '';
+      }
+
+      // Hide manual breakdown sections (replaced by Gorilla totals)
       for (var h = 0; h < GORILLA_HIDE_IDS.length; h++) {
         var hEl = document.getElementById(GORILLA_HIDE_IDS[h]);
         if (hEl) hEl.style.display = 'none';
       }
-      for (var d = 0; d < DISPLAY_ONLY_FIELDS.length; d++) {
-        var dEl = document.getElementById(DISPLAY_ONLY_FIELDS[d]);
-        if (dEl) dEl.value = '0';
-      }
 
-      // Force double-count fields to 0
+      // Force double-count fields to 0 (forecast uses Available which already excludes reserved)
       for (var w = 0; w < ZERO_WHEN_GORILLA.length; w++) {
         var wEl = document.getElementById(ZERO_WHEN_GORILLA[w]);
         if (wEl) wEl.value = '0';
@@ -1010,6 +1077,9 @@
 
         // Set velocity auto/reset state
         applyVelocityAutoState(gorillaFields);
+
+        // Set selling price auto/reset state
+        applySellingPriceAutoState(gorillaFields);
 
         hideStatus();
       }).withFailureHandler(function(err) {

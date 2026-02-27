@@ -45,6 +45,9 @@ var SKU_INPUT_ROWS = [
   { key: 'UNFULFILLABLE_CUSTOMER_DAMAGED',  label: 'Unfulfillable: Customer damaged',            defaultVal: 0,    format: 'number'  },
   { key: 'UNFULFILLABLE_CARRIER_DAMAGED',   label: 'Unfulfillable: Carrier damaged',             defaultVal: 0,    format: 'number'  },
   { key: 'UNFULFILLABLE_DISTRIBUTOR_DAMAGED', label: 'Unfulfillable: Distributor damaged',       defaultVal: 0,    format: 'number'  },
+  // ── Starting Inventory: Gorilla totals (display-only when Gorilla active) ──
+  { key: 'RESERVED_TOTAL',        label: 'Reserved (total)',                              defaultVal: 0,    format: 'number'  },
+  { key: 'UNSELLABLE_TOTAL',      label: 'Unsellable (total)',                            defaultVal: 0,    format: 'number'  },
   // ── Forecast config ──
   { key: 'FBA_CHECKIN_DELAY',     label: 'FBA check-in and processing delay (days)',      defaultVal: 7,    format: 'number'  },
   { key: 'FBM_ONHAND',            label: 'FBM on-hand',                                   defaultVal: 0,    format: 'number'  },

@@ -23,12 +23,9 @@ var GORILLA_LINK_MAP = {
   'INBOUND_WORKING':         'C',
   'INBOUND_SHIPPED':         'D',
   'INBOUND_RECEIVING':       'E',
-  // NOTE: Reserved (col F) is intentionally NOT linked to Settings.
-  // Gorilla's "reserved" is the TOTAL of all reserved types (customer orders +
-  // FC processing + FC transfer). Amazon's "fulfillable" already excludes reserved
-  // units, so linking this would double-subtract from the forecast. The column
-  // stays on the Gorilla Data tab as a reference number only.
+  'RESERVED_TOTAL':          'F',   // Display-only — Available already excludes reserved
   'ONHAND_FC_TRANSFER':      'G',
+  'UNSELLABLE_TOTAL':        'H',   // Display-only — total unfulfillable units
   'DAILY_VELOCITY':          'J',
   'SELLING_PRICE':           'K'
 };
