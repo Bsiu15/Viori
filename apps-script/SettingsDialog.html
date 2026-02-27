@@ -119,27 +119,27 @@
       border-left: 3px solid #1a73e8;
     }
 
-    /* ── FBA auto-calc field ── */
-    .fba-field-wrap {
+    /* ── Auto-calc field (FBA, velocity, etc.) ── */
+    .auto-field-wrap {
       display: flex;
       align-items: center;
       gap: 6px;
     }
-    .fba-field-wrap input { width: 100px; }
-    .fba-auto-label {
+    .auto-field-wrap input { width: 100px; }
+    .auto-label {
       font-size: 10px;
       color: #80868b;
       font-style: italic;
       white-space: nowrap;
     }
-    .fba-reset {
+    .auto-reset {
       font-size: 10px;
       color: #1a73e8;
       cursor: pointer;
       text-decoration: underline;
       white-space: nowrap;
     }
-    .fba-reset:hover { color: #1557b0; }
+    .auto-reset:hover { color: #1557b0; }
 
     /* ── Buttons ── */
     .btn-row {
@@ -345,10 +345,10 @@
             FBA (available for sale)
             <span class="info-tip" tabindex="0">i<span class="tip-text">Auto-calculated from On-hand Available. Type a number to override. Click "reset" to go back to auto.</span></span>
           </label>
-          <div class="fba-field-wrap">
+          <div class="auto-field-wrap">
             <input type="number" id="FBA_OVERRIDE" min="0" oninput="onFbaInput()">
-            <span id="fbaAutoLabel" class="fba-auto-label">auto</span>
-            <span id="fbaReset" class="fba-reset" style="display:none;" onclick="resetFba()">reset</span>
+            <span id="fbaAutoLabel" class="auto-label">auto</span>
+            <span id="fbaReset" class="auto-reset" style="display:none;" onclick="resetFba()">reset</span>
           </div>
         </div>
 
@@ -489,7 +489,11 @@
           <label>Daily velocity (units/day)
             <span class="info-tip" tabindex="0">i<span class="tip-text">Average units sold per day. Auto-populated from your recent sales history when Gorilla is active. Type a number to override.</span></span>
           </label>
-          <input type="number" id="DAILY_VELOCITY" value="0" min="0" step="0.1">
+          <div class="auto-field-wrap">
+            <input type="number" id="DAILY_VELOCITY" value="0" min="0" step="0.1" oninput="onVelocityInput()">
+            <span id="velAutoLabel" class="auto-label" style="display:none;">auto</span>
+            <span id="velReset" class="auto-reset" style="display:none;" onclick="resetVelocity()">reset</span>
+          </div>
         </div>
         <div class="override-group">
           <div class="override-label">Override 1
@@ -505,7 +509,11 @@
           </div>
           <div class="field">
             <label>Units/day</label>
-            <input type="number" id="VEL_OVERRIDE_1_VALUE" min="0" step="0.1">
+            <div class="auto-field-wrap">
+              <input type="number" id="VEL_OVERRIDE_1_VALUE" min="0" step="0.1" oninput="onOverrideInput(1)">
+              <span id="ovr1AutoLabel" class="auto-label" style="display:none;">auto</span>
+              <span id="ovr1Reset" class="auto-reset" style="display:none;" onclick="resetOverride(1)">reset</span>
+            </div>
           </div>
         </div>
         <div class="override-group">
@@ -520,7 +528,11 @@
           </div>
           <div class="field">
             <label>Units/day</label>
-            <input type="number" id="VEL_OVERRIDE_2_VALUE" min="0" step="0.1">
+            <div class="auto-field-wrap">
+              <input type="number" id="VEL_OVERRIDE_2_VALUE" min="0" step="0.1" oninput="onOverrideInput(2)">
+              <span id="ovr2AutoLabel" class="auto-label" style="display:none;">auto</span>
+              <span id="ovr2Reset" class="auto-reset" style="display:none;" onclick="resetOverride(2)">reset</span>
+            </div>
           </div>
         </div>
         <div class="override-group">
@@ -535,7 +547,11 @@
           </div>
           <div class="field">
             <label>Units/day</label>
-            <input type="number" id="VEL_OVERRIDE_3_VALUE" min="0" step="0.1">
+            <div class="auto-field-wrap">
+              <input type="number" id="VEL_OVERRIDE_3_VALUE" min="0" step="0.1" oninput="onOverrideInput(3)">
+              <span id="ovr3AutoLabel" class="auto-label" style="display:none;">auto</span>
+              <span id="ovr3Reset" class="auto-reset" style="display:none;" onclick="resetOverride(3)">reset</span>
+            </div>
           </div>
         </div>
       </div>
@@ -771,6 +787,76 @@
       }
     }
 
+    // ── Velocity auto — tracks which velocity fields are Gorilla-linked ──
+    // Stores the original Gorilla values so we can detect manual changes on save
+    var velGorillaOriginal = {};
+
+    function onVelocityInput() {
+      if (currentGorillaFields.indexOf('DAILY_VELOCITY') === -1) return;
+      var el = document.getElementById('DAILY_VELOCITY');
+      el.classList.remove('gorilla-linked');
+      document.getElementById('velAutoLabel').style.display = 'none';
+      document.getElementById('velReset').style.display = 'inline';
+    }
+
+    function resetVelocity() {
+      var el = document.getElementById('DAILY_VELOCITY');
+      if (velGorillaOriginal['DAILY_VELOCITY'] !== undefined) {
+        el.value = velGorillaOriginal['DAILY_VELOCITY'];
+      }
+      el.classList.add('gorilla-linked');
+      document.getElementById('velAutoLabel').style.display = 'inline';
+      document.getElementById('velReset').style.display = 'none';
+    }
+
+    function onOverrideInput(n) {
+      var key = 'VEL_OVERRIDE_' + n + '_VALUE';
+      if (currentGorillaFields.indexOf(key) === -1) return;
+      var el = document.getElementById(key);
+      el.classList.remove('gorilla-linked');
+      document.getElementById('ovr' + n + 'AutoLabel').style.display = 'none';
+      document.getElementById('ovr' + n + 'Reset').style.display = 'inline';
+    }
+
+    function resetOverride(n) {
+      var key = 'VEL_OVERRIDE_' + n + '_VALUE';
+      var el = document.getElementById(key);
+      if (velGorillaOriginal[key] !== undefined) {
+        el.value = velGorillaOriginal[key];
+      }
+      el.classList.add('gorilla-linked');
+      document.getElementById('ovr' + n + 'AutoLabel').style.display = 'inline';
+      document.getElementById('ovr' + n + 'Reset').style.display = 'none';
+    }
+
+    function applyVelocityAutoState(gorillaFields) {
+      velGorillaOriginal = {};
+
+      // Daily velocity
+      if (gorillaFields.indexOf('DAILY_VELOCITY') > -1) {
+        var vel = document.getElementById('DAILY_VELOCITY');
+        velGorillaOriginal['DAILY_VELOCITY'] = vel.value;
+        document.getElementById('velAutoLabel').style.display = 'inline';
+        document.getElementById('velReset').style.display = 'none';
+      } else {
+        document.getElementById('velAutoLabel').style.display = 'none';
+        document.getElementById('velReset').style.display = 'none';
+      }
+
+      // Override values
+      for (var n = 1; n <= 3; n++) {
+        var key = 'VEL_OVERRIDE_' + n + '_VALUE';
+        if (gorillaFields.indexOf(key) > -1) {
+          var ovEl = document.getElementById(key);
+          velGorillaOriginal[key] = ovEl.value;
+          document.getElementById('ovr' + n + 'AutoLabel').style.display = 'inline';
+          document.getElementById('ovr' + n + 'Reset').style.display = 'none';
+        } else {
+          document.getElementById('ovr' + n + 'AutoLabel').style.display = 'none';
+          document.getElementById('ovr' + n + 'Reset').style.display = 'none';
+        }
+      }
+    }
 
     // ── Field ID lists ──
     var FIELD_IDS = [
@@ -830,6 +916,13 @@
       for (var h = 0; h < GORILLA_HIDE_IDS.length; h++) {
         var hEl = document.getElementById(GORILLA_HIDE_IDS[h]);
         if (hEl) hEl.style.display = '';
+      }
+      // Reset velocity auto labels
+      document.getElementById('velAutoLabel').style.display = 'none';
+      document.getElementById('velReset').style.display = 'none';
+      for (var n = 1; n <= 3; n++) {
+        document.getElementById('ovr' + n + 'AutoLabel').style.display = 'none';
+        document.getElementById('ovr' + n + 'Reset').style.display = 'none';
       }
       currentGorillaFields = [];
       isGorillaActive = false;
@@ -914,6 +1007,9 @@
         // Set FBA field state
         var fbaVal = values['FBA_OVERRIDE'];
         setFbaVisualState(fbaVal !== null && fbaVal !== undefined && fbaVal !== '');
+
+        // Set velocity auto/reset state
+        applyVelocityAutoState(gorillaFields);
 
         hideStatus();
       }).withFailureHandler(function(err) {
