@@ -1046,6 +1046,7 @@
         showStatus('<span class="spinner"></span> Recalculating...', '');
         google.script.run.withSuccessHandler(function() {
           showStatus('Saved and recalculated', 'success');
+          loadSku(); // Refresh form to show auto-calculated values
         }).withFailureHandler(function(err) {
           showStatus('Error recalculating: ' + err.message, 'error');
         }).recalculateSku(skuId);
@@ -1063,6 +1064,7 @@
         showStatus('<span class="spinner"></span> Recalculating all...', '');
         google.script.run.withSuccessHandler(function() {
           showStatus('Saved and recalculated all', 'success');
+          loadSku(); // Refresh form to show auto-calculated values
         }).withFailureHandler(function(err) {
           showStatus('Error: ' + err.message, 'error');
         }).recalculateAll();

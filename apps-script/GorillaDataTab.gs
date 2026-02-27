@@ -299,6 +299,34 @@ function linkSettingsToGorilla() {
       cell.setNote('Auto-populated from Gorilla ROI. Type a number to override.');
     }
 
+    // Link velocity override value formulas (auto-calc from last year's sales)
+    for (var ovr = 1; ovr <= 3; ovr++) {
+      var ovrKey  = 'VEL_OVERRIDE_' + ovr + '_VALUE';
+      var ovrCell = ss.getRangeByName(prefix + '__' + ovrKey);
+      if (!ovrCell) continue;
+
+      // Skip if already has a Gorilla-linked formula
+      var ovrFormula = ovrCell.getFormula();
+      if (ovrFormula && (ovrFormula.indexOf(GORILLA_DATA_TAB_NAME) > -1 ||
+                         ovrFormula.indexOf('GORILLA_') > -1)) continue;
+
+      // Skip if the user has a non-empty manual override
+      if (!ovrFormula) {
+        var ovrVal = ovrCell.getValue();
+        if (ovrVal !== '' && ovrVal !== 0 && ovrVal !== null && ovrVal !== undefined) continue;
+      }
+
+      ovrCell.setFormula(buildVelAutoCalcFormula(prefix, skus[i].id, ovr));
+      ovrCell.setBackground('#E8F0FE');
+      ovrCell.setNote(
+        'Auto-calculated from Gorilla ROI historical data.\n' +
+        'Pulls last year\'s shipped sales for the same date range\n' +
+        'and divides by the number of days to get daily velocity.\n\n' +
+        'Just enter the start and end dates — this value fills in automatically.\n' +
+        'Type a number to manually override.'
+      );
+    }
+
     // Default double-counting fields to 0 if empty, but respect manual overrides.
     for (var wKey in warningKeys) {
       if (!warningKeys.hasOwnProperty(wKey)) continue;
