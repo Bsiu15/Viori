@@ -263,11 +263,11 @@ function linkSettingsToGorilla() {
   var ss   = SpreadsheetApp.getActiveSpreadsheet();
   var skus = getSkus();
 
-  // Build set of fields that risk double-counting (should be forced to 0)
+  // Build set of fields that risk double-counting — maps key to warning text
   var warningKeys = {};
   for (var w = 0; w < SKU_INPUT_ROWS.length; w++) {
     if (SKU_INPUT_ROWS[w].gorillaWarning) {
-      warningKeys[SKU_INPUT_ROWS[w].key] = true;
+      warningKeys[SKU_INPUT_ROWS[w].key] = SKU_INPUT_ROWS[w].gorillaWarning;
     }
   }
 
@@ -299,13 +299,17 @@ function linkSettingsToGorilla() {
       cell.setNote('Auto-populated from Gorilla ROI. Type a number to override.');
     }
 
-    // Zero out double-counting fields (e.g. Reserved: Customer order, FC processing)
+    // Default double-counting fields to 0 if empty, but respect manual overrides.
     for (var wKey in warningKeys) {
       if (!warningKeys.hasOwnProperty(wKey)) continue;
       var wRange = ss.getRangeByName(prefix + '__' + wKey);
       if (!wRange) continue;
-      wRange.setValue(0);
+      var wVal = wRange.getValue();
+      if (wVal === '' || wVal === null || wVal === undefined) {
+        wRange.setValue(0);
+      }
       wRange.setBackground('#FFF3CD');
+      wRange.setNote(warningKeys[wKey]);
     }
   }
 
