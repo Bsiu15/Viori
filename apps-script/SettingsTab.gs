@@ -52,13 +52,13 @@ var SKU_INPUT_ROWS = [
   { key: 'DAILY_VELOCITY',        label: 'Daily sales velocity (units/day)',              defaultVal: 0,    format: 'number'  },
   { key: 'VEL_OVERRIDE_1_START',  label: 'Velocity override 1: start date',              defaultVal: '',   format: 'date'    },
   { key: 'VEL_OVERRIDE_1_END',    label: 'Velocity override 1: end date',                defaultVal: '',   format: 'date'    },
-  { key: 'VEL_OVERRIDE_1_VALUE',  label: 'Velocity override 1: units/day',               defaultVal: '',   format: 'number'  },
+  { key: 'VEL_OVERRIDE_1_VALUE',  label: 'Velocity override 1: units/day',               defaultVal: '',   format: 'number',  velOverrideNum: 1 },
   { key: 'VEL_OVERRIDE_2_START',  label: 'Velocity override 2: start date',              defaultVal: '',   format: 'date'    },
   { key: 'VEL_OVERRIDE_2_END',    label: 'Velocity override 2: end date',                defaultVal: '',   format: 'date'    },
-  { key: 'VEL_OVERRIDE_2_VALUE',  label: 'Velocity override 2: units/day',               defaultVal: '',   format: 'number'  },
+  { key: 'VEL_OVERRIDE_2_VALUE',  label: 'Velocity override 2: units/day',               defaultVal: '',   format: 'number',  velOverrideNum: 2 },
   { key: 'VEL_OVERRIDE_3_START',  label: 'Velocity override 3: start date',              defaultVal: '',   format: 'date'    },
   { key: 'VEL_OVERRIDE_3_END',    label: 'Velocity override 3: end date',                defaultVal: '',   format: 'date'    },
-  { key: 'VEL_OVERRIDE_3_VALUE',  label: 'Velocity override 3: units/day',               defaultVal: '',   format: 'number'  },
+  { key: 'VEL_OVERRIDE_3_VALUE',  label: 'Velocity override 3: units/day',               defaultVal: '',   format: 'number',  velOverrideNum: 3 },
   // ── Conversion Rate ──
   { key: 'CONVERSION_RATE',       label: 'Conversion rate (%)',                           defaultVal: 100,  format: 'percent' },
   { key: 'CR_OVERRIDE_1_START',   label: 'CR override 1: start date',                    defaultVal: '',   format: 'date'    },
@@ -97,6 +97,36 @@ var SKU_INPUT_ROWS = [
  */
 function namedRangePrefix(skuId) {
   return skuId.replace(/-/g, '_');
+}
+
+/**
+ * Builds a Gorilla auto-calc formula for a velocity override VALUE field.
+ * The formula pulls GORILLA_SALESCOUNT for the same date range shifted back
+ * one year and divides by the number of days to produce a daily velocity.
+ *
+ * Returns "" when the override START/END dates are empty, so the engine
+ * skips the override entirely (readNamedRange treats "" as null).
+ *
+ * @param {string} prefix      Named-range prefix, e.g. "SB_HW_100W_FBA"
+ * @param {string} skuId       Original SKU id, e.g. "SB-HW-100W-FBA"
+ * @param {number} overrideNum 1, 2, or 3
+ * @return {string} A Google Sheets formula string
+ */
+function buildVelAutoCalcFormula(prefix, skuId, overrideNum) {
+  var startRef = prefix + '__VEL_OVERRIDE_' + overrideNum + '_START';
+  var endRef   = prefix + '__VEL_OVERRIDE_' + overrideNum + '_END';
+
+  // When both dates are present, pull last year's shipped sales for that range
+  // and divide by the number of days to get daily velocity.
+  // When dates are empty, return "" so the override is ignored by SettingsReader.
+  return '=IF(AND(' + startRef + '<>"", ' + endRef + '<>""), ' +
+    'IFERROR(' +
+      'GORILLA_SALESCOUNT(GLOBAL__GORILLA_SELLER_ID, "Custom", GLOBAL__GORILLA_MARKETPLACE, "' + skuId + '", ' +
+        '"Shipped", "NO", ' +
+        'TEXT(' + startRef + ' - 365, "yyyy-mm-dd"), ' +
+        'TEXT(' + endRef + ' - 365, "yyyy-mm-dd")) ' +
+      '/ (' + endRef + ' - ' + startRef + ' + 1)' +
+    ', ""), "")';
 }
 
 /**
@@ -330,7 +360,8 @@ function buildSettingsTab() {
         if (saved && typeof saved === 'object' && saved.__isFormula) {
           valueCell.setFormula(saved.formula);
           // Re-apply Gorilla indicator if it's a Gorilla-linked formula
-          if (saved.formula.indexOf(GORILLA_DATA_TAB_NAME) > -1) {
+          if (saved.formula.indexOf(GORILLA_DATA_TAB_NAME) > -1 ||
+              saved.formula.indexOf('GORILLA_') > -1) {
             isGorillaLinked = true;
           }
         } else {
@@ -342,6 +373,10 @@ function buildSettingsTab() {
         var gorillaRow = i + 2; // SKU index 0 → Gorilla Data row 2
         valueCell.setFormula("=IFERROR('" + GORILLA_DATA_TAB_NAME + "'!" + gorillaCol + gorillaRow + ", 0)");
         isGorillaLinked = true;
+      } else if (savedGorillaSellerId && input.velOverrideNum) {
+        // Auto-calculate velocity from last year's sales for the override date range
+        valueCell.setFormula(buildVelAutoCalcFormula(prefix, sku.id, input.velOverrideNum));
+        isGorillaLinked = true;
       } else if (input.defaultVal !== '' && input.defaultVal !== null) {
         valueCell.setValue(input.defaultVal);
       }
@@ -349,7 +384,17 @@ function buildSettingsTab() {
       // Visual indicator for Gorilla-linked cells
       if (isGorillaLinked) {
         valueCell.setBackground('#E8F0FE');
-        valueCell.setNote('Auto-populated from Gorilla ROI. Type a number to override.');
+        if (input.velOverrideNum) {
+          valueCell.setNote(
+            'Auto-calculated from Gorilla ROI historical data.\n' +
+            'Pulls last year\'s shipped sales for the same date range\n' +
+            'and divides by the number of days to get daily velocity.\n\n' +
+            'Just enter the start and end dates — this value fills in automatically.\n' +
+            'Type a number to manually override.'
+          );
+        } else {
+          valueCell.setNote('Auto-populated from Gorilla ROI. Type a number to override.');
+        }
       }
 
       // Warning note on fields that risk double-counting when Gorilla is active
