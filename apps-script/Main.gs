@@ -28,6 +28,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Recalculate All', 'recalculateAll')
     .addItem('Refresh Gorilla Data', 'refreshGorillaData')
+    .addItem('Rebuild Settings', 'buildSettingsTab')
     .addSeparator()
     .addItem('Initial Setup (first time)', 'initialSetup')
     .addItem('Install Auto-Refresh Trigger', 'installTrigger')
