@@ -263,10 +263,19 @@ function linkSettingsToGorilla() {
   var ss   = SpreadsheetApp.getActiveSpreadsheet();
   var skus = getSkus();
 
+  // Build set of fields that risk double-counting (should be forced to 0)
+  var warningKeys = {};
+  for (var w = 0; w < SKU_INPUT_ROWS.length; w++) {
+    if (SKU_INPUT_ROWS[w].gorillaWarning) {
+      warningKeys[SKU_INPUT_ROWS[w].key] = true;
+    }
+  }
+
   for (var i = 0; i < skus.length; i++) {
     var prefix    = namedRangePrefix(skus[i].id);
     var gorillaRow = i + 2; // SKU index 0 → Gorilla Data row 2
 
+    // Link Gorilla fields
     for (var key in GORILLA_LINK_MAP) {
       if (!GORILLA_LINK_MAP.hasOwnProperty(key)) continue;
 
@@ -288,6 +297,15 @@ function linkSettingsToGorilla() {
       cell.setFormula("=IFERROR('" + GORILLA_DATA_TAB_NAME + "'!" + gorillaCol + gorillaRow + ", 0)");
       cell.setBackground('#E8F0FE');
       cell.setNote('Auto-populated from Gorilla ROI. Type a number to override.');
+    }
+
+    // Zero out double-counting fields (e.g. Reserved: Customer order, FC processing)
+    for (var wKey in warningKeys) {
+      if (!warningKeys.hasOwnProperty(wKey)) continue;
+      var wRange = ss.getRangeByName(prefix + '__' + wKey);
+      if (!wRange) continue;
+      wRange.setValue(0);
+      wRange.setBackground('#FFF3CD');
     }
   }
 

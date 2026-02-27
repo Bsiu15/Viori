@@ -388,8 +388,9 @@ function buildSettingsTab() {
         }
       }
 
-      // Warning note on fields that risk double-counting when Gorilla is active
+      // Force zero + warning on fields that risk double-counting when Gorilla is active
       if (savedGorillaSellerId && input.gorillaWarning && !isGorillaLinked) {
+        valueCell.setValue(0);
         valueCell.setNote(input.gorillaWarning);
         valueCell.setBackground('#FFF3CD'); // amber = caution
       }

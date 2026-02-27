@@ -243,6 +243,18 @@ function saveSkuSettingsFromDialog(skuId, values) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var p  = namedRangePrefix(skuId);
 
+  // Check if Gorilla is active — if so, force double-counting fields to 0
+  var sellerRange = ss.getRangeByName('GLOBAL__GORILLA_SELLER_ID');
+  var gorillaActive = sellerRange && sellerRange.getValue() && sellerRange.getValue() !== '';
+  var warningKeys = {};
+  if (gorillaActive) {
+    for (var w = 0; w < SKU_INPUT_ROWS.length; w++) {
+      if (SKU_INPUT_ROWS[w].gorillaWarning) {
+        warningKeys[SKU_INPUT_ROWS[w].key] = true;
+      }
+    }
+  }
+
   var dateFields = [
     'VEL_OVERRIDE_1_START', 'VEL_OVERRIDE_1_END',
     'VEL_OVERRIDE_2_START', 'VEL_OVERRIDE_2_END',
@@ -263,6 +275,12 @@ function saveSkuSettingsFromDialog(skuId, values) {
       (formula.indexOf(GORILLA_DATA_TAB_NAME) > -1 || formula.indexOf('GORILLA_') > -1);
 
     var val = values[key];
+
+    // Force double-counting fields to 0 when Gorilla is active
+    if (warningKeys[key]) {
+      range.setValue(0);
+      continue;
+    }
 
     if (isGorillaCell) {
       // Compare: if the sidebar value matches the current formula result, skip (preserve formula)
