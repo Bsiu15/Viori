@@ -24,8 +24,9 @@ var GORILLA_LINK_MAP = {
   'INBOUND_SHIPPED':         'D',
   'INBOUND_RECEIVING':       'E',
   'RESERVED_CUSTOMER_ORDER': 'F',
-  'DAILY_VELOCITY':          'H',
-  'SELLING_PRICE':           'I'
+  'ONHAND_FC_TRANSFER':      'G',
+  'DAILY_VELOCITY':          'J',
+  'SELLING_PRICE':           'K'
 };
 
 /**
@@ -53,7 +54,7 @@ function buildGorillaDataTab() {
   sheet.clearFormats();
 
   // Ensure enough columns and rows
-  var requiredCols = 9;
+  var requiredCols = 11;
   var requiredRows = skus.length + 1;
   var currentCols  = sheet.getMaxColumns();
   var currentRows  = sheet.getMaxRows();
@@ -72,6 +73,8 @@ function buildGorillaDataTab() {
     'Inbound Shipped',
     'Inbound Receiving',
     'Reserved',
+    'FC Transfer',
+    'Unsellable',
     'Sales (lookback)',
     'Daily Velocity',
     'Selling Price'
@@ -122,19 +125,29 @@ function buildGorillaDataTab() {
       '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "reserved"), 0)'
     );
 
-    // Col G: Sales Count (last N days)
+    // Col G: FC Transfer
     sheet.getRange(row, 7).setFormula(
+      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "transfer"), 0)'
+    );
+
+    // Col H: Unsellable (total unfulfillable)
+    sheet.getRange(row, 8).setFormula(
+      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "unsellable"), 0)'
+    );
+
+    // Col I: Sales Count (last N days)
+    sheet.getRange(row, 9).setFormula(
       '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', A' + row +
       ', "Shipped", "NO", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
     );
 
-    // Col H: Daily Velocity (derived from sales / lookback days)
-    sheet.getRange(row, 8).setFormula(
-      '=IFERROR(G' + row + '/' + lookRef + ', 0)'
+    // Col J: Daily Velocity (derived from sales / lookback days)
+    sheet.getRange(row, 10).setFormula(
+      '=IFERROR(I' + row + '/' + lookRef + ', 0)'
     );
 
-    // Col I: Selling Price
-    sheet.getRange(row, 9).setFormula(
+    // Col K: Selling Price
+    sheet.getRange(row, 11).setFormula(
       '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', A' + row + ', ' + mktRef + '), 0)'
     );
   }
@@ -142,14 +155,17 @@ function buildGorillaDataTab() {
   // ── Formatting ──
   if (skus.length > 0) {
     sheet.getRange(2, 1, skus.length, 1).setFontWeight('bold');
-    sheet.getRange(2, 2, skus.length, 6).setNumberFormat('#,##0');
-    sheet.getRange(2, 8, skus.length, 1).setNumberFormat('#,##0.0');
-    sheet.getRange(2, 9, skus.length, 1).setNumberFormat('$#,##0.00');
+    // Cols B-I: inventory counts + sales count (integers)
+    sheet.getRange(2, 2, skus.length, 8).setNumberFormat('#,##0');
+    // Col J: Daily Velocity (one decimal)
+    sheet.getRange(2, 10, skus.length, 1).setNumberFormat('#,##0.0');
+    // Col K: Selling Price (currency)
+    sheet.getRange(2, 11, skus.length, 1).setNumberFormat('$#,##0.00');
   }
 
   // ── Column widths ──
   sheet.setColumnWidth(1, 200);
-  for (var c = 2; c <= 9; c++) {
+  for (var c = 2; c <= 11; c++) {
     sheet.setColumnWidth(c, 130);
   }
 
@@ -167,7 +183,7 @@ function buildGorillaDataTab() {
 /**
  * Lightweight linking: sets IFERROR formulas on existing Settings named ranges
  * to point at the Gorilla Data tab. Only touches the fields in GORILLA_LINK_MAP
- * (7 fields × N SKUs), so it runs in seconds instead of minutes.
+ * (8 fields × N SKUs), so it runs in seconds instead of minutes.
  *
  * Skips any cell that already has a user-typed value (no formula) to preserve
  * manual overrides.
