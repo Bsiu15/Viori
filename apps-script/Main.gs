@@ -224,7 +224,8 @@ function getSkuSettingsForDialog(skuId) {
   return {
     values: values,
     gorillaFields: gorillaFields,
-    gorillaWarningFields: gorillaWarningFields
+    gorillaWarningFields: gorillaWarningFields,
+    gorillaActive: !!gorillaActive
   };
 }
 
