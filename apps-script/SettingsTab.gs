@@ -61,15 +61,6 @@ var SKU_INPUT_ROWS = [
   { key: 'VEL_OVERRIDE_3_VALUE',  label: 'Velocity override 3: units/day',               defaultVal: '',   format: 'number',  velOverrideNum: 3 },
   // ── Conversion Rate ──
   { key: 'CONVERSION_RATE',       label: 'Conversion rate (%)',                           defaultVal: 100,  format: 'percent' },
-  { key: 'CR_OVERRIDE_1_START',   label: 'CR override 1: start date',                    defaultVal: '',   format: 'date'    },
-  { key: 'CR_OVERRIDE_1_END',     label: 'CR override 1: end date',                      defaultVal: '',   format: 'date'    },
-  { key: 'CR_OVERRIDE_1_VALUE',   label: 'CR override 1: value (%)',                     defaultVal: '',   format: 'percent' },
-  { key: 'CR_OVERRIDE_2_START',   label: 'CR override 2: start date',                    defaultVal: '',   format: 'date'    },
-  { key: 'CR_OVERRIDE_2_END',     label: 'CR override 2: end date',                      defaultVal: '',   format: 'date'    },
-  { key: 'CR_OVERRIDE_2_VALUE',   label: 'CR override 2: value (%)',                     defaultVal: '',   format: 'percent' },
-  { key: 'CR_OVERRIDE_3_START',   label: 'CR override 3: start date',                    defaultVal: '',   format: 'date'    },
-  { key: 'CR_OVERRIDE_3_END',     label: 'CR override 3: end date',                      defaultVal: '',   format: 'date'    },
-  { key: 'CR_OVERRIDE_3_VALUE',   label: 'CR override 3: value (%)',                     defaultVal: '',   format: 'percent' },
   // ── Shipments ──
   { key: 'SPD_UNITS',             label: 'SPD shipment: units',                           defaultVal: 0,    format: 'number'  },
   { key: 'SPD_SEND_DATE',         label: 'SPD shipment: send date',                       defaultVal: '',   format: 'date'    },

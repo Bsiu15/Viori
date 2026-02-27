@@ -73,17 +73,6 @@ function readSkuSettings(skuId) {
     }
   }
 
-  // ── Read conversion rate overrides (up to 3) ──
-  var crOverrides = [];
-  for (var c = 1; c <= 3; c++) {
-    var cStart = readDate(ss, p + '__CR_OVERRIDE_' + c + '_START');
-    var cEnd   = readDate(ss, p + '__CR_OVERRIDE_' + c + '_END');
-    var cVal   = readNamedRange(ss, p + '__CR_OVERRIDE_' + c + '_VALUE');
-    if (cStart && cEnd && cVal !== null) {
-      crOverrides.push({ start: cStart, end: cEnd, value: Number(cVal) || 0 });
-    }
-  }
-
   // ── Read FBA override (manual override for total FBA available) ──
   var fbaOverride = readNamedRange(ss, p + '__FBA_OVERRIDE');
 
@@ -147,7 +136,6 @@ function readSkuSettings(skuId) {
 
     // ── Conversion rate ──
     conversionRate:    readNum(ss,  p + '__CONVERSION_RATE'),
-    crOverrides:       crOverrides,
 
     // ── SPD shipment ──
     spdUnits:          readNum(ss,  p + '__SPD_UNITS'),

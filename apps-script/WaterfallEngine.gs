@@ -165,18 +165,8 @@ function runWaterfall(cfg) {
       }
     }
 
-    // Check all conversion rate overrides (first matching override wins)
-    var convRate = cfg.conversionRate;
-    for (var co = 0; co < cfg.crOverrides.length; co++) {
-      var crOv = cfg.crOverrides[co];
-      if (dateInRange(today, crOv.start, crOv.end)) {
-        convRate = crOv.value;
-        break;
-      }
-    }
-
     // Apply conversion rate to velocity
-    var effectiveVelocity = velocity * (convRate / 100);
+    var effectiveVelocity = velocity * (cfg.conversionRate / 100);
     // Round to avoid floating point drift — use banker's rounding to nearest 0.01
     effectiveVelocity = Math.round(effectiveVelocity * 100) / 100;
 
@@ -240,7 +230,7 @@ function runWaterfall(cfg) {
       dtcStart:          dayStartDtc,
       unitsSold:         unitsSold,
       soldFrom:          channel,
-      conversionRate:    convRate,
+      conversionRate:    cfg.conversionRate,
       effectiveVelocity: effectiveVelocity,
       fbaAvailableEnd:   fbaAvail,
       fbaProcessingEnd:  fbaProc,
