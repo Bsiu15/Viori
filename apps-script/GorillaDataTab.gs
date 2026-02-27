@@ -169,11 +169,74 @@ function buildGorillaDataTab() {
     sheet.setColumnWidth(c, 130);
   }
 
-  // ── Info note ──
+  // ── Header notes (ELI5 + Settings mapping) ──
   sheet.getRange(1, 1).setNote(
+    'SKU = Your product ID in Amazon Seller Central.\n' +
     'This tab auto-populates from Gorilla ROI.\n' +
     'Requires the Gorilla ROI add-on connected to Seller Central.\n' +
     'Do not edit these cells — edit values on the Settings tab instead.'
+  );
+  sheet.getRange(1, 2).setNote(
+    'Available = Units that customers can buy right now.\n' +
+    'This is what Amazon considers "fulfillable" — sitting on the shelf, ready to ship.\n\n' +
+    'Settings field: "On-hand: Available"'
+  );
+  sheet.getRange(1, 3).setNote(
+    'Inbound Working = Units in a shipment you created but haven\'t sent yet.\n' +
+    'You made the shipping plan in Seller Central, but the boxes haven\'t left your door.\n\n' +
+    'Settings field: "Inbound: Working"'
+  );
+  sheet.getRange(1, 4).setNote(
+    'Inbound Shipped = Units on the truck heading to Amazon\'s warehouse.\n' +
+    'You shipped them out, but Amazon hasn\'t checked them in yet.\n\n' +
+    'Settings field: "Inbound: Shipped"'
+  );
+  sheet.getRange(1, 5).setNote(
+    'Inbound Receiving = Units that arrived at Amazon and are being checked in.\n' +
+    'Amazon has the boxes but is still scanning and shelving them.\n\n' +
+    'Settings field: "Inbound: Receiving"'
+  );
+  sheet.getRange(1, 6).setNote(
+    'Reserved = Units set aside and temporarily unavailable for new orders.\n' +
+    'Includes units in customer orders being packed, being moved between\n' +
+    'warehouses, or being processed. They\'re yours, just busy.\n\n' +
+    'Settings field: "Reserved: Customer order"\n' +
+    'Note: Gorilla gives the total reserved number. The Settings tab breaks\n' +
+    'this into sub-categories (customer order, FC processing) if you need detail.'
+  );
+  sheet.getRange(1, 7).setNote(
+    'FC Transfer = Units being moved from one Amazon warehouse to another.\n' +
+    'Amazon shuffles your inventory around to be closer to buyers.\n' +
+    'These units can\'t be sold while in transit between fulfillment centers.\n\n' +
+    'Settings field: "On-hand: FC transfer"'
+  );
+  sheet.getRange(1, 8).setNote(
+    'Unsellable = Units Amazon won\'t sell because they\'re damaged, defective, or expired.\n' +
+    'Could be warehouse damage, customer returns in bad shape, carrier damage, etc.\n' +
+    'You\'ll want to create a removal order or investigate.\n\n' +
+    'Settings fields: This is the TOTAL of all 6 unfulfillable categories\n' +
+    '(warehouse damaged, defective, expired, customer damaged, carrier damaged,\n' +
+    'distributor damaged). Gorilla only gives the combined number — enter the\n' +
+    'breakdown on the Settings tab manually if needed.'
+  );
+  sheet.getRange(1, 9).setNote(
+    'Sales (lookback) = Total units sold in the last N days.\n' +
+    'N is your "Lookback Days" setting (e.g. 30 days).\n' +
+    'This is the raw number used to calculate your daily velocity.\n\n' +
+    'Not directly linked to Settings — used to derive Daily Velocity.'
+  );
+  sheet.getRange(1, 10).setNote(
+    'Daily Velocity = How many units you sell per day on average.\n' +
+    'Calculated as: Sales (lookback) / Lookback Days.\n' +
+    'This is the #1 driver of your reorder forecast — it tells the calendar\n' +
+    'when you\'ll run out of stock.\n\n' +
+    'Settings field: "Daily Velocity"'
+  );
+  sheet.getRange(1, 11).setNote(
+    'Selling Price = Your current listing price on Amazon.\n' +
+    'What the customer sees. Used in the forecast to estimate revenue impact\n' +
+    'and prioritize which SKUs to reorder first.\n\n' +
+    'Settings field: "Selling Price"'
   );
 
   sheet.setFrozenRows(1);
