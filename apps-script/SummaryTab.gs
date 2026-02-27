@@ -211,15 +211,13 @@ function buildSummaryTab(allResults) {
   if (anyFinancials) {
     var finRow = legendRow + 2;
 
-    // Define months for financial breakdown
-    var finMonths = [
-      { year: 2026, month: 1, name: 'Feb' },
-      { year: 2026, month: 2, name: 'Mar' },
-      { year: 2026, month: 3, name: 'Apr' }
-    ];
+    // Define months for financial breakdown (dynamic from START_DATE → END_DATE)
+    var finMonths = forecastMonthsShort();
+    // Total columns: SKU(5) + per-month(6 each) + totals(6)
+    var finTotalCols = 5 + finMonths.length * 6 + 6;
 
     // Title
-    sheet.getRange(finRow, 1, 1, msTotalCols).merge()
+    sheet.getRange(finRow, 1, 1, finTotalCols).merge()
          .setValue('OOS Financial Impact')
          .setFontSize(12)
          .setFontWeight('bold')
@@ -287,9 +285,10 @@ function buildSummaryTab(allResults) {
         var snap = snaps[di];
         if (snap.channel === 'OOS' && price > 0) {
           var snapMonth = snap.date.getMonth(); // 0-indexed
+          var snapYear  = snap.date.getFullYear();
           var mKey = null;
           for (var mk = 0; mk < finMonths.length; mk++) {
-            if (finMonths[mk].month === snapMonth) {
+            if (finMonths[mk].month === snapMonth && finMonths[mk].year === snapYear) {
               mKey = finMonths[mk].name;
               break;
             }
@@ -453,7 +452,9 @@ function buildSummaryTab(allResults) {
     var impRow = finRow + 2;
 
     // Title
-    sheet.getRange(impRow, 1, 1, msTotalCols).merge()
+    // Total Impact cols: SKU(5) + 3 groups × 3 fields × 2 cols = 5+18 = 23
+    var impTotalCols = 5 + 9 * 2;
+    sheet.getRange(impRow, 1, 1, impTotalCols).merge()
          .setValue('Total Impact Summary')
          .setFontSize(12)
          .setFontWeight('bold')

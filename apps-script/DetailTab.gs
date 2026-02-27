@@ -96,13 +96,8 @@ function buildDetailTab(skuDef, data, cfg) {
   // Build snapshot lookup
   var snapMap = buildSnapshotMap(data);
 
-  // Determine which months to render
-  // Forecast: Feb 19 – Apr 30, 2026
-  var months = [
-    { year: 2026, month: 1, name: 'February 2026' },  // month is 0-indexed
-    { year: 2026, month: 2, name: 'March 2026' },
-    { year: 2026, month: 3, name: 'April 2026' }
-  ];
+  // Determine which months to render (dynamic from START_DATE → END_DATE)
+  var months = forecastMonths();
 
   var row = 1;
   var numCols = 7; // Sun–Sat

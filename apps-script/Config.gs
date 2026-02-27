@@ -192,6 +192,45 @@ var SETTINGS_VALUE_COL = 2;
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
+ * Returns an array of {year, month, name} objects for every calendar month
+ * that falls within the START_DATE → END_DATE forecast window.
+ * month is 0-indexed (0=Jan, 1=Feb, …). name is the full "Month YYYY" label.
+ * @return {Object[]}
+ */
+function forecastMonths() {
+  var MONTH_NAMES = ['January','February','March','April','May','June',
+                     'July','August','September','October','November','December'];
+  var months = [];
+  var y = START_DATE.getFullYear();
+  var m = START_DATE.getMonth();
+  var endY = END_DATE.getFullYear();
+  var endM = END_DATE.getMonth();
+
+  while (y < endY || (y === endY && m <= endM)) {
+    months.push({ year: y, month: m, name: MONTH_NAMES[m] + ' ' + y });
+    m++;
+    if (m > 11) { m = 0; y++; }
+  }
+  return months;
+}
+
+/**
+ * Same as forecastMonths() but with short 3-letter names (e.g. "Feb", "Mar").
+ * @return {Object[]}
+ */
+function forecastMonthsShort() {
+  var SHORT = ['Jan','Feb','Mar','Apr','May','Jun',
+               'Jul','Aug','Sep','Oct','Nov','Dec'];
+  var full = forecastMonths();
+  var result = [];
+  for (var i = 0; i < full.length; i++) {
+    var yr = String(full[i].year).slice(-2); // "26", "27", etc.
+    result.push({ year: full[i].year, month: full[i].month, name: SHORT[full[i].month] + ' \'' + yr });
+  }
+  return result;
+}
+
+/**
  * Returns the total number of days in the forecast window (inclusive).
  * @return {number}
  */
