@@ -27,8 +27,15 @@ var SKU_INPUT_ROWS = [
   { key: 'ONHAND_AVAILABLE',            label: 'On-hand: Available',                             defaultVal: 0,    format: 'number'  },
   { key: 'ONHAND_FC_TRANSFER',          label: 'On-hand: FC transfer',                          defaultVal: 0,    format: 'number'  },
   // ── Starting Inventory: Reserved ──
-  { key: 'RESERVED_CUSTOMER_ORDER',     label: 'Reserved: Customer order',                      defaultVal: 0,    format: 'number'  },
-  { key: 'RESERVED_FC_PROCESSING',      label: 'Reserved: FC processing',                       defaultVal: 0,    format: 'number'  },
+  { key: 'RESERVED_CUSTOMER_ORDER',     label: 'Reserved: Customer order',                      defaultVal: 0,    format: 'number',
+    gorillaWarning: 'LEAVE AT 0 when using Gorilla.\n' +
+      'Amazon\'s "Available" already excludes reserved units.\n' +
+      'Entering a number here will double-subtract from your forecast.' },
+  { key: 'RESERVED_FC_PROCESSING',      label: 'Reserved: FC processing',                       defaultVal: 0,    format: 'number',
+    gorillaWarning: 'LEAVE AT 0 when using Gorilla.\n' +
+      'Amazon\'s "Available" already excludes reserved units.\n' +
+      'FC processing units are not broken out by Gorilla — entering\n' +
+      'a value here risks double-counting with the Available number.' },
   // ── Starting Inventory: Researching ──
   { key: 'RESEARCHING',                 label: 'Researching',                                    defaultVal: 0,    format: 'number'  },
   // ── Starting Inventory: Unfulfillable ──
@@ -343,6 +350,12 @@ function buildSettingsTab() {
       if (isGorillaLinked) {
         valueCell.setBackground('#E8F0FE');
         valueCell.setNote('Auto-populated from Gorilla ROI. Type a number to override.');
+      }
+
+      // Warning note on fields that risk double-counting when Gorilla is active
+      if (savedGorillaSellerId && input.gorillaWarning && !isGorillaLinked) {
+        valueCell.setNote(input.gorillaWarning);
+        valueCell.setBackground('#FFF3CD'); // amber = caution
       }
 
       // Apply formatting

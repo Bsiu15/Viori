@@ -505,6 +505,30 @@ function onEditTrigger(e) {
   // Only recalculate if the edit was in the values column (column B).
   if (e.range.getColumn() !== SETTINGS_VALUE_COL) return;
 
+  // ── Gorilla override warning ──
+  // If the user manually types over a Gorilla-linked cell (light blue background),
+  // warn them with a toast and change the visual indicators.
+  var cell = e.range;
+  var bg = cell.getBackground();
+  if (bg === '#e8f0fe' && !cell.getFormula()) {
+    // Cell was Gorilla-linked but now has a manual value
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    cell.setBackground('#fff3cd');  // amber = manual override
+    cell.setNote(
+      'MANUAL OVERRIDE — Gorilla auto-populate has been replaced.\n' +
+      'This cell was previously fed by Gorilla ROI (live Amazon data).\n' +
+      'Your typed value will be used in the forecast instead.\n\n' +
+      'To restore: Menu → Inventory Forecast → Refresh Gorilla Data.'
+    );
+    ss.toast(
+      'This field was auto-populated from Amazon via Gorilla ROI. ' +
+      'Your manual value will now be used instead. ' +
+      'Use "Refresh Gorilla Data" to restore the live link.',
+      '⚠ Gorilla Override',
+      8
+    );
+  }
+
   // Debounce: use a lock to prevent overlapping recalculations
   var lock = LockService.getScriptLock();
   var acquired = lock.tryLock(2000);
