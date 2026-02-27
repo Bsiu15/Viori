@@ -292,6 +292,17 @@
       background: #fff3cd;
       border-color: #f9c846;
     }
+    .gorilla-warn-text {
+      display: none;
+      font-size: 10px;
+      color: #b45309;
+      background: #fff3cd;
+      border-radius: 4px;
+      padding: 4px 8px;
+      margin-top: 2px;
+      line-height: 1.4;
+    }
+    .gorilla-warn-text.show { display: block; }
     /* Currency input prefix */
     .currency-wrap {
       display: flex;
@@ -413,19 +424,21 @@
             <span class="inv-cat-label">Reserved</span>
           </div>
           <div class="inv-detail">
-            <div class="field">
+            <div class="field" style="flex-wrap: wrap;">
               <label>
                 Customer order
                 <span class="info-tip" tabindex="0">i<span class="tip-text">Units set aside for orders customers already placed but Amazon hasn't shipped yet. These are spoken for.</span></span>
               </label>
               <input type="number" id="RESERVED_CUSTOMER_ORDER" value="0" min="0">
+              <div class="gorilla-warn-text" id="gorilla_warn_RESERVED_CUSTOMER_ORDER" style="width:100%;">Leave at 0 with Gorilla. "Available" already excludes reserved — entering a number here will double-subtract.</div>
             </div>
-            <div class="field">
+            <div class="field" style="flex-wrap: wrap;">
               <label>
                 FC processing
                 <span class="info-tip" tabindex="0">i<span class="tip-text">Units being relabeled, prepped, or processed inside Amazon's warehouse. Temporarily unavailable.</span></span>
               </label>
               <input type="number" id="RESERVED_FC_PROCESSING" value="0" min="0">
+              <div class="gorilla-warn-text" id="gorilla_warn_RESERVED_FC_PROCESSING" style="width:100%;">Leave at 0 with Gorilla. FC processing units aren't broken out — entering a value risks double-counting.</div>
             </div>
           </div>
         </div>
@@ -897,6 +910,11 @@
       for (var b = 0; b < badges.length; b++) {
         badges[b].classList.remove('show');
       }
+      // Hide all gorilla warning texts
+      var warns = document.querySelectorAll('.gorilla-warn-text');
+      for (var w = 0; w < warns.length; w++) {
+        warns[w].classList.remove('show');
+      }
     }
 
     // Apply Gorilla styling to fields
@@ -915,6 +933,9 @@
       for (var j = 0; j < wf.length; j++) {
         var wEl = document.getElementById(wf[j]);
         if (wEl) wEl.classList.add('gorilla-warning');
+        // Show inline warning text if it exists
+        var warnText = document.getElementById('gorilla_warn_' + wf[j]);
+        if (warnText) warnText.classList.add('show');
       }
     }
 
