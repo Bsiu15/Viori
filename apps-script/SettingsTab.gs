@@ -105,6 +105,14 @@ function buildSettingsTab() {
   // ── Preserve existing values before clearing ──
   var savedValues = {};
   // Preserve global settings
+  var savedStartDate = null;
+  var globalStartRange = ss.getRangeByName('GLOBAL__FORECAST_START_DATE');
+  if (globalStartRange) {
+    var gVal = globalStartRange.getValue();
+    if (gVal instanceof Date && !isNaN(gVal.getTime())) {
+      savedStartDate = gVal;
+    }
+  }
   var savedEndDate = null;
   var globalEndRange = ss.getRangeByName('GLOBAL__FORECAST_END_DATE');
   if (globalEndRange) {
@@ -179,6 +187,20 @@ function buildSettingsTab() {
        .setFontWeight('bold')
        .setFontSize(11)
        .setBorder(true, true, true, true, false, false);
+  row += 1;
+
+  sheet.getRange(row, SETTINGS_LABEL_COL)
+       .setValue('Forecast start date')
+       .setFontSize(10);
+  var startDateCell = sheet.getRange(row, SETTINGS_VALUE_COL);
+  if (savedStartDate) {
+    startDateCell.setValue(savedStartDate);
+  } else {
+    startDateCell.setValue(START_DATE);
+  }
+  startDateCell.setNumberFormat('m/d/yyyy');
+  sheet.getRange(row, 1, 1, 2).setBorder(null, true, null, true, false, false);
+  ss.setNamedRange('GLOBAL__FORECAST_START_DATE', startDateCell);
   row += 1;
 
   sheet.getRange(row, SETTINGS_LABEL_COL)

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Google Sans', Roboto, Arial, sans-serif;
+      font-size: 13px;
+      color: #202124;
+      background: #fff;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a73e8;
+      margin-bottom: 4px;
+    }
+    .subtitle {
+      font-size: 12px;
+      color: #5f6368;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .field {
+      width: 100%;
+      max-width: 280px;
+      margin-bottom: 16px;
+    }
+    .field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #5f6368;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .field input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      font-size: 14px;
+      background: #f8f9fa;
+    }
+    .field input:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 2px rgba(26,115,232,0.15);
+      background: #fff;
+    }
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+      max-width: 280px;
+      margin-top: 8px;
+    }
+    .btn {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-primary {
+      background: #1a73e8;
+      color: #fff;
+    }
+    .btn-primary:hover { background: #1557b0; }
+    .btn-secondary {
+      background: #f1f3f4;
+      color: #5f6368;
+    }
+    .btn-secondary:hover { background: #e8eaed; }
+    .status {
+      text-align: center;
+      padding: 8px;
+      font-size: 12px;
+      color: #5f6368;
+      display: none;
+      margin-top: 12px;
+    }
+    .status.show { display: block; }
+    .status.success { color: #34a853; }
+    .status.error { color: #ea4335; }
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid #dadce0;
+      border-top-color: #1a73e8;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <h2>Forecast Date Range</h2>
+  <div class="subtitle">Set the start and end dates for your forecast window.</div>
+
+  <div class="field">
+    <label>Start Date</label>
+    <input type="date" id="startDate">
+  </div>
+
+  <div class="field">
+    <label>End Date</label>
+    <input type="date" id="endDate">
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="google.script.host.close()">Cancel</button>
+    <button class="btn btn-primary" onclick="save()">Save & Recalculate</button>
+  </div>
+
+  <div id="status" class="status"></div>
+
+  <script>
+    // Load current dates on open
+    google.script.run.withSuccessHandler(function(dates) {
+      if (dates.startDate) {
+        document.getElementById('startDate').value = dates.startDate;
+      }
+      if (dates.endDate) {
+        document.getElementById('endDate').value = dates.endDate;
+      }
+    }).withFailureHandler(function(err) {
+      showStatus('Error loading dates: ' + err.message, 'error');
+    }).getDateRangeForDialog();
+
+    function save() {
+      var startDate = document.getElementById('startDate').value;
+      var endDate = document.getElementById('endDate').value;
+
+      if (!startDate || !endDate) {
+        showStatus('Please select both a start and end date.', 'error');
+        return;
+      }
+
+      if (startDate >= endDate) {
+        showStatus('End date must be after start date.', 'error');
+        return;
+      }
+
+      showStatus('<span class="spinner"></span> Saving and recalculating...', '');
+
+      google.script.run.withSuccessHandler(function() {
+        showStatus('Date range updated and forecast recalculated!', 'success');
+        setTimeout(function() { google.script.host.close(); }, 1500);
+      }).withFailureHandler(function(err) {
+        showStatus('Error: ' + err.message, 'error');
+      }).saveDateRangeFromDialog(startDate, endDate);
+    }
+
+    function showStatus(msg, type) {
+      var el = document.getElementById('status');
+      el.innerHTML = msg;
+      el.className = 'status show' + (type ? ' ' + type : '');
+    }
+  </script>
+
+</body>
+</html>

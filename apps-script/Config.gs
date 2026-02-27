@@ -9,11 +9,24 @@
  */
 
 // ── Date range ──────────────────────────────────────────────────────────────
-/** First day of the forecast window — always "today" so we only forecast forward */
+/** First day of the forecast window.
+ *  Reads from the "Forecast start date" cell in the Settings tab.
+ *  Falls back to today if the named range hasn't been created yet.
+ */
 var START_DATE = (function() {
-  var d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+  var fallback = new Date();
+  fallback.setHours(0, 0, 0, 0);
+  try {
+    var r = SpreadsheetApp.getActiveSpreadsheet().getRangeByName('GLOBAL__FORECAST_START_DATE');
+    if (r) {
+      var v = r.getValue();
+      if (v instanceof Date && !isNaN(v.getTime())) {
+        v.setHours(0, 0, 0, 0);
+        return v;
+      }
+    }
+  } catch (e) { /* spreadsheet not available (e.g. during API testing) */ }
+  return fallback;
 })();
 /** Last day of the forecast window.
  *  Reads from the "Forecast end date" cell in the Settings tab.

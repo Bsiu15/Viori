@@ -24,6 +24,7 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Inventory Forecast')
     .addItem('Edit SKU Settings', 'openSettingsDialog')
+    .addItem('Set Forecast Date Range', 'openDateRangeDialog')
     .addSeparator()
     .addItem('Recalculate All', 'recalculateAll')
     .addSeparator()
@@ -40,6 +41,89 @@ function openSettingsDialog() {
     .setTitle('SKU Settings')
     .setWidth(380);
   SpreadsheetApp.getUi().showSidebar(html);
+}
+
+/**
+ * Opens the date range dialog.
+ */
+function openDateRangeDialog() {
+  var html = HtmlService.createHtmlOutputFromFile('DateRangeDialog')
+    .setTitle('Forecast Date Range')
+    .setWidth(340)
+    .setHeight(320);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Forecast Date Range');
+}
+
+/**
+ * Returns the current forecast start and end dates as "yyyy-mm-dd" strings
+ * for the date range dialog.
+ * @return {Object} {startDate, endDate}
+ */
+function getDateRangeForDialog() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var result = { startDate: '', endDate: '' };
+
+  var startRange = ss.getRangeByName('GLOBAL__FORECAST_START_DATE');
+  if (startRange) {
+    var v = startRange.getValue();
+    if (v instanceof Date && !isNaN(v.getTime())) {
+      result.startDate = Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    }
+  }
+  if (!result.startDate) {
+    // Default to today
+    result.startDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+
+  var endRange = ss.getRangeByName('GLOBAL__FORECAST_END_DATE');
+  if (endRange) {
+    var v = endRange.getValue();
+    if (v instanceof Date && !isNaN(v.getTime())) {
+      result.endDate = Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    }
+  }
+  if (!result.endDate) {
+    result.endDate = Utilities.formatDate(END_DATE, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+
+  return result;
+}
+
+/**
+ * Saves the forecast date range from the dialog and recalculates.
+ * @param {string} startDateStr  "yyyy-mm-dd"
+ * @param {string} endDateStr    "yyyy-mm-dd"
+ */
+function saveDateRangeFromDialog(startDateStr, endDateStr) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // Parse dates
+  var startParts = startDateStr.split('-');
+  var startDate = new Date(Number(startParts[0]), Number(startParts[1]) - 1, Number(startParts[2]));
+  var endParts = endDateStr.split('-');
+  var endDate = new Date(Number(endParts[0]), Number(endParts[1]) - 1, Number(endParts[2]));
+
+  // Write to named ranges (create them if they don't exist yet)
+  var startRange = ss.getRangeByName('GLOBAL__FORECAST_START_DATE');
+  if (startRange) {
+    startRange.setValue(startDate);
+  }
+
+  var endRange = ss.getRangeByName('GLOBAL__FORECAST_END_DATE');
+  if (endRange) {
+    endRange.setValue(endDate);
+  }
+
+  SpreadsheetApp.flush();
+
+  // Update the global variables so recalculation uses the new dates
+  START_DATE = startDate;
+  START_DATE.setHours(0, 0, 0, 0);
+  END_DATE = endDate;
+  END_DATE.setHours(23, 59, 59, 0);
+
+  // Recalculate everything with the new date range
+  recalculateAll();
 }
 
 /**
