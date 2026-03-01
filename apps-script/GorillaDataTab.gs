@@ -94,63 +94,43 @@ function buildGorillaDataTab() {
   var lookRef   = 'GLOBAL__GORILLA_LOOKBACK_DAYS';
 
   // ── Data rows — one per SKU ──
+  // Write formulas in batches of 2 SKUs with delays between batches
+  // to avoid triggering Google's custom-function rate limit.
+  var BATCH_SIZE = 2;
+
   for (var i = 0; i < skus.length; i++) {
     var row   = i + 2;
     var skuId = skus[i].id;
 
-    // Col A: SKU ID
-    sheet.getRange(row, 1).setValue(skuId);
-
-    // Col B: Available (fulfillable)
-    sheet.getRange(row, 2).setFormula(
-      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "fulfillable"), 0)'
-    );
-
-    // Col C: Inbound Working
-    sheet.getRange(row, 3).setFormula(
-      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "inbound_working"), 0)'
-    );
-
-    // Col D: Inbound Shipped
-    sheet.getRange(row, 4).setFormula(
-      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "inbound_shipped"), 0)'
-    );
-
-    // Col E: Inbound Receiving
-    sheet.getRange(row, 5).setFormula(
-      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "inbound_receiving"), 0)'
-    );
-
-    // Col F: Reserved
-    sheet.getRange(row, 6).setFormula(
-      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "reserved"), 0)'
-    );
-
-    // Col G: FC Transfer
-    sheet.getRange(row, 7).setFormula(
-      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "transfer"), 0)'
-    );
-
-    // Col H: Unsellable (total unfulfillable)
-    sheet.getRange(row, 8).setFormula(
-      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "unsellable"), 0)'
-    );
-
-    // Col I: Sales Count (last N days)
-    sheet.getRange(row, 9).setFormula(
+    // Build the full row of formulas for this SKU
+    var rowFormulas = [
+      skuId, // Col A: SKU ID (plain value, replaced below)
+      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "fulfillable"), 0)',
+      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "inbound_working"), 0)',
+      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "inbound_shipped"), 0)',
+      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "inbound_receiving"), 0)',
+      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "reserved"), 0)',
+      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "transfer"), 0)',
+      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "unsellable"), 0)',
       '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', A' + row +
-      ', "Shipped", "NO", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
-    );
-
-    // Col J: Daily Velocity (derived from sales / lookback days)
-    sheet.getRange(row, 10).setFormula(
-      '=IFERROR(I' + row + '/' + lookRef + ', 0)'
-    );
-
-    // Col K: Selling Price
-    sheet.getRange(row, 11).setFormula(
+        ', "Shipped", "NO", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)',
+      '=IFERROR(I' + row + '/' + lookRef + ', 0)',
       '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', A' + row + ', ' + mktRef + '), 0)'
-    );
+    ];
+
+    // Col A: SKU ID (plain value)
+    sheet.getRange(row, 1).setValue(skuId);
+    // Cols B-K: formulas (batch write the 10 formula cells in one call)
+    sheet.getRange(row, 2, 1, 10).setFormulas([rowFormulas.slice(1)]);
+
+    // After every BATCH_SIZE SKUs, flush and pause so Google doesn't
+    // throttle the Gorilla ROI custom-function evaluations.
+    if ((i + 1) % BATCH_SIZE === 0 && i < skus.length - 1) {
+      SpreadsheetApp.flush();
+      Utilities.sleep(3000);
+      ss.toast('Loading SKUs ' + (i + 2) + '-' + Math.min(i + 1 + BATCH_SIZE, skus.length) +
+               ' of ' + skus.length + '...', 'Gorilla ROI', 5);
+    }
   }
 
   // ── Formatting ──
