@@ -363,8 +363,8 @@ function refreshGorillaData() {
   // Build the Gorilla Data formula sheet
   buildGorillaDataTab();
 
-  // Link Settings cells to Gorilla Data (lightweight — no full rebuild)
-  linkSettingsToGorilla();
+  // Link Settings cells to Gorilla Data — force=true to overwrite stale values
+  linkSettingsToGorilla(true);
 
   ss.toast(
     'Gorilla Data linked! Wait ~30s for formulas to populate, then run "Recalculate All".',

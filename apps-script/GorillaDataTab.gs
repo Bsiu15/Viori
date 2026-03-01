@@ -253,10 +253,13 @@ function buildGorillaDataTab() {
  * to point at the Gorilla Data tab. Only touches the fields in GORILLA_LINK_MAP
  * (7 fields × N SKUs), so it runs in seconds instead of minutes.
  *
- * Skips any cell that already has a user-typed value (no formula) to preserve
- * manual overrides.
+ * @param {boolean} force  When true, overwrites ALL Gorilla-linkable cells
+ *                         (including manual overrides). Use when the user
+ *                         explicitly runs "Refresh Gorilla Data".
+ *                         When false (default), skips cells that already have
+ *                         a user-typed non-zero value to preserve overrides.
  */
-function linkSettingsToGorilla() {
+function linkSettingsToGorilla(force) {
   var ss   = SpreadsheetApp.getActiveSpreadsheet();
   var skus = getSkus();
 
@@ -285,7 +288,8 @@ function linkSettingsToGorilla() {
       if (existingFormula && existingFormula.indexOf(GORILLA_DATA_TAB_NAME) > -1) continue;
 
       // If the cell has a non-zero user-entered value (no formula), skip to preserve override
-      if (!existingFormula) {
+      // — unless force=true (user explicitly ran Refresh Gorilla Data)
+      if (!force && !existingFormula) {
         var val = cell.getValue();
         if (val !== '' && val !== 0 && val !== null && val !== undefined) continue;
       }
@@ -308,7 +312,8 @@ function linkSettingsToGorilla() {
                          ovrFormula.indexOf('GORILLA_') > -1)) continue;
 
       // Skip if the user has a non-empty manual override
-      if (!ovrFormula) {
+      // — unless force=true (user explicitly ran Refresh Gorilla Data)
+      if (!force && !ovrFormula) {
         var ovrVal = ovrCell.getValue();
         if (ovrVal !== '' && ovrVal !== 0 && ovrVal !== null && ovrVal !== undefined) continue;
       }
