@@ -346,6 +346,13 @@ function waitForGorillaFormulas(skuId) {
 
   if (cellsToWatch.length === 0) return;
 
+  // Show a toast so the user knows why the sidebar is paused
+  ss.toast(
+    'Waiting for Gorilla to compute velocity override data — this may take up to 45 seconds…',
+    'Gorilla ROI',
+    45
+  );
+
   // Poll: check every 3 seconds, up to 45 seconds total
   var maxWait  = 45000;
   var interval = 3000;
@@ -367,9 +374,13 @@ function waitForGorillaFormulas(skuId) {
       }
     }
 
-    if (allResolved) return;
+    if (allResolved) {
+      ss.toast('Velocity override data ready.', 'Gorilla ROI', 3);
+      return;
+    }
   }
   // Timeout — proceed anyway; the value will populate on next refresh
+  ss.toast('Gorilla data timed out — proceeding with available values.', 'Gorilla ROI', 5);
 }
 
 /**
