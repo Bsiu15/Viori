@@ -14,8 +14,8 @@
  *   Line 5: Event (if any)
  *   Line 6: Lost: $X rev (OOS days only, when financials are set)
  *
- * Below the calendar grid, a Financial Impact Summary table shows:
- *   Per-month OOS days, Lost Revenue, Lost DPP
+ * Below the calendar grid, a unified Financial Impact table shows:
+ *   Per-month: OOS Days, Lost Rev, FBM Days, FBM Saved, FBM Cost, Net Impact
  * ---------------------------------------------------------------------------
  */
 
@@ -258,7 +258,7 @@ function buildDetailTab(skuDef, data, cfg) {
               lines.push('Lost: ' + fmtDollar(dayLostRev) + ' rev');
 
               // Accumulate for monthly summary
-              monthFinancials[mo.name].oosDays += (snap.channel === 'OOS') ? 1 : 0.5; // partial OOS = 0.5 for display
+              monthFinancials[mo.name].oosDays += 1; // any unfulfilled demand = 1 whole OOS day
               monthFinancials[mo.name].lostRevenue += dayLostRev;
               monthFinancials[mo.name].lostDpp += dayLostDpp;
             }
@@ -268,12 +268,12 @@ function buildDetailTab(skuDef, data, cfg) {
               var dayFbmCost = snap.soldFromFbm * snap.fbmCostPerUnit;
               lines.push('FBM cost: ' + fmtDollar(dayFbmCost));
 
-              monthFinancials[mo.name].fbmDays += (snap.channel.indexOf('→') > -1) ? 0.5 : 1;
+              monthFinancials[mo.name].fbmDays += 1;
               var fbmPrice = (cfg && cfg.fbmSellingPrice > 0) ? cfg.fbmSellingPrice : sellingPrice;
               monthFinancials[mo.name].fbmRevenue += snap.soldFromFbm * fbmPrice;
               monthFinancials[mo.name].fbmCost += dayFbmCost;
             } else if (snap.soldFromFbm > 0) {
-              monthFinancials[mo.name].fbmDays += (snap.channel.indexOf('→') > -1) ? 0.5 : 1;
+              monthFinancials[mo.name].fbmDays += 1;
               var fbmPrice2 = (cfg && cfg.fbmSellingPrice > 0) ? cfg.fbmSellingPrice : sellingPrice;
               monthFinancials[mo.name].fbmRevenue += snap.soldFromFbm * fbmPrice2;
             }
@@ -326,7 +326,7 @@ function buildDetailTab(skuDef, data, cfg) {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // FINANCIAL IMPACT SUMMARY TABLE (below calendar, only if financials set)
+  // FINANCIAL IMPACT TABLE (single unified table below calendar)
   // ══════════════════════════════════════════════════════════════════════════
 
   if (hasFinancials) {
@@ -334,7 +334,7 @@ function buildDetailTab(skuDef, data, cfg) {
 
     // Title
     sheet.getRange(row, 1, 1, numCols).merge()
-         .setValue('OOS Financial Impact — ' + skuDef.id)
+         .setValue('Inventory Gap Financial Impact — ' + skuDef.id)
          .setFontSize(12)
          .setFontWeight('bold')
          .setBackground(COLORS.HEADER)
@@ -342,52 +342,72 @@ function buildDetailTab(skuDef, data, cfg) {
          .setHorizontalAlignment('left');
     row += 1;
 
-    // Headers
-    var finHeaders = ['Month', 'OOS Days', 'Lost Revenue', 'Lost DPP'];
+    // Headers: 7 columns matching the calendar grid width
+    var finHeaders = ['Month', 'OOS Days', 'Lost Rev', 'FBM Days', 'FBM Saved', 'FBM Cost', 'Net Impact'];
+    var finHdrBgs  = ['#E2EFDA', '#E2EFDA', COLORS.OOS, '#E2EFDA', '#C6EFCE', '#FFF2CC', '#D6E4F0'];
     for (var fh = 0; fh < finHeaders.length; fh++) {
       sheet.getRange(row, fh + 1)
            .setValue(finHeaders[fh])
            .setFontWeight('bold')
            .setFontSize(10)
-           .setBackground('#E2EFDA')
+           .setBackground(finHdrBgs[fh])
            .setHorizontalAlignment('center')
            .setBorder(true, true, true, true, false, false);
     }
     row += 1;
 
     // Monthly rows
-    var totalOosDays = 0, totalLostRev = 0, totalLostDpp = 0;
+    var totalOosDays = 0, totalLostRev = 0;
+    var totalFbmDays = 0, totalFbmSaved = 0, totalFbmCost = 0;
+    var fbmPrice = (cfg && cfg.fbmSellingPrice > 0) ? cfg.fbmSellingPrice : sellingPrice;
+
     for (var fm = 0; fm < months.length; fm++) {
       var mName = months[fm].name;
       var mf = monthFinancials[mName];
       totalOosDays += mf.oosDays;
       totalLostRev += mf.lostRevenue;
-      totalLostDpp += mf.lostDpp;
+      totalFbmDays += mf.fbmDays;
+      totalFbmSaved += mf.fbmRevenue;
+      totalFbmCost += mf.fbmCost;
+
+      var mNetImpact = -(mf.lostRevenue + mf.fbmCost);
 
       sheet.getRange(row, 1).setValue(mName)
            .setFontSize(10).setHorizontalAlignment('left')
            .setBorder(true, true, true, true, false, false);
-      sheet.getRange(row, 2).setValue(mf.oosDays)
+
+      var oosDaysCell = sheet.getRange(row, 2).setValue(mf.oosDays)
+           .setFontSize(10).setHorizontalAlignment('center')
+           .setBorder(true, true, true, true, false, false);
+      if (mf.oosDays > 0) oosDaysCell.setBackground(COLORS.OOS);
+
+      var revCell = sheet.getRange(row, 3).setValue(mf.lostRevenue)
+           .setNumberFormat('$#,##0')
+           .setFontSize(10).setHorizontalAlignment('right')
+           .setBorder(true, true, true, true, false, false);
+      if (mf.lostRevenue > 0) revCell.setBackground(COLORS.OOS);
+
+      sheet.getRange(row, 4).setValue(mf.fbmDays)
            .setFontSize(10).setHorizontalAlignment('center')
            .setBorder(true, true, true, true, false, false);
 
-      var revCell = sheet.getRange(row, 3);
-      revCell.setValue(mf.lostRevenue)
-             .setNumberFormat('$#,##0.00')
-             .setFontSize(10).setHorizontalAlignment('right')
-             .setBorder(true, true, true, true, false, false);
+      var fbmSavedCell = sheet.getRange(row, 5).setValue(mf.fbmRevenue)
+           .setNumberFormat('$#,##0')
+           .setFontSize(10).setHorizontalAlignment('right')
+           .setBorder(true, true, true, true, false, false);
+      if (mf.fbmRevenue > 0) fbmSavedCell.setBackground('#C6EFCE');
 
-      var dppCell = sheet.getRange(row, 4);
-      dppCell.setValue(mf.lostDpp)
-             .setNumberFormat('$#,##0.00')
-             .setFontSize(10).setHorizontalAlignment('right')
-             .setBorder(true, true, true, true, false, false);
+      var fbmCostCell = sheet.getRange(row, 6).setValue(mf.fbmCost)
+           .setNumberFormat('$#,##0')
+           .setFontSize(10).setHorizontalAlignment('right')
+           .setBorder(true, true, true, true, false, false);
+      if (mf.fbmCost > 0) fbmCostCell.setBackground('#FFF2CC');
 
-      // Subtle red background on loss numbers
-      if (mf.lostRevenue > 0) {
-        revCell.setBackground(COLORS.OOS);
-        dppCell.setBackground(COLORS.OOS);
-      }
+      sheet.getRange(row, 7).setValue(mNetImpact)
+           .setNumberFormat('-$#,##0;$#,##0;$0')
+           .setFontSize(10).setHorizontalAlignment('right')
+           .setBorder(true, true, true, true, false, false)
+           .setBackground(mNetImpact < 0 ? '#D6E4F0' : null);
 
       row += 1;
     }
@@ -396,7 +416,7 @@ function buildDetailTab(skuDef, data, cfg) {
     var pastOosDays = (cfg && cfg.pastOosDays) ? cfg.pastOosDays : 0;
     var pastEffVel  = (cfg && cfg.dailyVelocity) ? cfg.dailyVelocity : 0;
     var pastLostRev = pastOosDays * pastEffVel * sellingPrice;
-    var pastLostDpp = pastLostRev * (dppMargin / 100);
+    var pastNet = -pastLostRev;
 
     sheet.getRange(row, 1).setValue('ALREADY LOST')
          .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('left')
@@ -407,159 +427,117 @@ function buildDetailTab(skuDef, data, cfg) {
          .setBorder(true, true, true, true, false, false)
          .setBackground('#FFF2CC');
     sheet.getRange(row, 3).setValue(pastLostRev)
-         .setNumberFormat('$#,##0.00')
+         .setNumberFormat('$#,##0')
          .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
          .setBorder(true, true, true, true, false, false)
          .setBackground('#FFF2CC');
-    sheet.getRange(row, 4).setValue(pastLostDpp)
-         .setNumberFormat('$#,##0.00')
+    // FBM Days, Saved, Cost = N/A for past
+    for (var pc = 4; pc <= 6; pc++) {
+      sheet.getRange(row, pc).setValue('—')
+           .setFontSize(10).setHorizontalAlignment('center')
+           .setBorder(true, true, true, true, false, false)
+           .setBackground('#FFF2CC');
+    }
+    sheet.getRange(row, 7).setValue(pastNet)
+         .setNumberFormat('-$#,##0;$#,##0;$0')
          .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
          .setBorder(true, true, true, true, false, false)
          .setBackground('#FFF2CC');
     row += 1;
 
-    // ── Projected row (from simulation) ──
+    // ── Projected row (simulation totals) ──
+    var projNet = -(totalLostRev + totalFbmCost);
+
     sheet.getRange(row, 1).setValue('PROJECTED')
          .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('left')
          .setBorder(true, true, true, true, false, false)
          .setBackground('#F2F2F2');
-    sheet.getRange(row, 2).setValue(totalOosDays)
+
+    var projOosDaysC = sheet.getRange(row, 2).setValue(totalOosDays)
+         .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center')
+         .setBorder(true, true, true, true, false, false);
+    if (totalOosDays > 0) projOosDaysC.setBackground(COLORS.OOS);
+    else projOosDaysC.setBackground('#F2F2F2');
+
+    var projRevC = sheet.getRange(row, 3).setValue(totalLostRev)
+         .setNumberFormat('$#,##0')
+         .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
+         .setBorder(true, true, true, true, false, false);
+    if (totalLostRev > 0) projRevC.setBackground(COLORS.OOS);
+    else projRevC.setBackground('#F2F2F2');
+
+    sheet.getRange(row, 4).setValue(totalFbmDays)
          .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center')
          .setBorder(true, true, true, true, false, false)
          .setBackground('#F2F2F2');
-    var projRevCell = sheet.getRange(row, 3);
-    projRevCell.setValue(totalLostRev)
-         .setNumberFormat('$#,##0.00')
+
+    var projFbmSavedC = sheet.getRange(row, 5).setValue(totalFbmSaved)
+         .setNumberFormat('$#,##0')
          .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
          .setBorder(true, true, true, true, false, false);
-    var projDppCell = sheet.getRange(row, 4);
-    projDppCell.setValue(totalLostDpp)
-         .setNumberFormat('$#,##0.00')
+    if (totalFbmSaved > 0) projFbmSavedC.setBackground('#C6EFCE');
+    else projFbmSavedC.setBackground('#F2F2F2');
+
+    var projFbmCostC = sheet.getRange(row, 6).setValue(totalFbmCost)
+         .setNumberFormat('$#,##0')
          .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
          .setBorder(true, true, true, true, false, false);
-    if (totalLostRev > 0) {
-      projRevCell.setBackground(COLORS.OOS);
-      projDppCell.setBackground(COLORS.OOS);
-    } else {
-      projRevCell.setBackground('#F2F2F2');
-      projDppCell.setBackground('#F2F2F2');
-    }
+    if (totalFbmCost > 0) projFbmCostC.setBackground('#FFF2CC');
+    else projFbmCostC.setBackground('#F2F2F2');
+
+    sheet.getRange(row, 7).setValue(projNet)
+         .setNumberFormat('-$#,##0;$#,##0;$0')
+         .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
+         .setBorder(true, true, true, true, false, false)
+         .setBackground(projNet < 0 ? '#D6E4F0' : '#F2F2F2');
     row += 1;
 
-    // ── Total Impact row ──
+    // ── Total Impact row (past + projected combined) ──
     var grandDays = pastOosDays + totalOosDays;
     var grandRev  = pastLostRev + totalLostRev;
-    var grandDpp  = pastLostDpp + totalLostDpp;
+    var grandNet  = -(grandRev + totalFbmCost);
 
     sheet.getRange(row, 1).setValue('TOTAL IMPACT')
          .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('left')
          .setBorder(true, true, true, true, false, false)
          .setBackground('#D6E4F0');
-    sheet.getRange(row, 2).setValue(grandDays)
+    var totalDaysC = sheet.getRange(row, 2).setValue(grandDays)
+         .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center')
+         .setBorder(true, true, true, true, false, false);
+    if (grandDays > 0) totalDaysC.setBackground(COLORS.OOS);
+    else totalDaysC.setBackground('#D6E4F0');
+
+    var totalRevC = sheet.getRange(row, 3).setValue(grandRev)
+         .setNumberFormat('$#,##0')
+         .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
+         .setBorder(true, true, true, true, false, false);
+    if (grandRev > 0) totalRevC.setBackground(COLORS.OOS);
+    else totalRevC.setBackground('#D6E4F0');
+
+    sheet.getRange(row, 4).setValue(totalFbmDays)
          .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center')
          .setBorder(true, true, true, true, false, false)
          .setBackground('#D6E4F0');
-    var totalRevCell = sheet.getRange(row, 3);
-    totalRevCell.setValue(grandRev)
-         .setNumberFormat('$#,##0.00')
+
+    var totalFbmSavedC = sheet.getRange(row, 5).setValue(totalFbmSaved)
+         .setNumberFormat('$#,##0')
          .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
          .setBorder(true, true, true, true, false, false);
-    var totalDppCell = sheet.getRange(row, 4);
-    totalDppCell.setValue(grandDpp)
-         .setNumberFormat('$#,##0.00')
+    if (totalFbmSaved > 0) totalFbmSavedC.setBackground('#C6EFCE');
+    else totalFbmSavedC.setBackground('#D6E4F0');
+
+    var totalFbmCostC = sheet.getRange(row, 6).setValue(totalFbmCost)
+         .setNumberFormat('$#,##0')
          .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
          .setBorder(true, true, true, true, false, false);
-    if (grandRev > 0) {
-      totalRevCell.setBackground(COLORS.OOS);
-      totalDppCell.setBackground(COLORS.OOS);
-    } else {
-      totalRevCell.setBackground('#D6E4F0');
-      totalDppCell.setBackground('#D6E4F0');
-    }
+    if (totalFbmCost > 0) totalFbmCostC.setBackground('#FFF2CC');
+    else totalFbmCostC.setBackground('#D6E4F0');
 
-    // ══════════════════════════════════════════════════════════════════════
-    // FBM FULFILLMENT COST TABLE (only shown if any FBM days with costs)
-    // ══════════════════════════════════════════════════════════════════════
-
-    var totalFbmDays = 0, totalFbmRev = 0, totalFbmCost = 0;
-    for (var fbi = 0; fbi < months.length; fbi++) {
-      totalFbmDays += monthFinancials[months[fbi].name].fbmDays;
-      totalFbmRev  += monthFinancials[months[fbi].name].fbmRevenue;
-      totalFbmCost += monthFinancials[months[fbi].name].fbmCost;
-    }
-
-    if (totalFbmDays > 0) {
-      row += 2;
-
-      // Title
-      sheet.getRange(row, 1, 1, numCols).merge()
-           .setValue('FBM Fulfillment Summary — ' + skuDef.id)
-           .setFontSize(12)
-           .setFontWeight('bold')
-           .setBackground(COLORS.HEADER)
-           .setFontColor(COLORS.HEADER_FG)
-           .setHorizontalAlignment('left');
-      row += 1;
-
-      // Headers
-      var fbmFinHeaders = ['Month', 'FBM Days', 'FBM Revenue', 'FBM Cost'];
-      for (var fbh = 0; fbh < fbmFinHeaders.length; fbh++) {
-        sheet.getRange(row, fbh + 1)
-             .setValue(fbmFinHeaders[fbh])
-             .setFontWeight('bold')
-             .setFontSize(10)
-             .setBackground('#FFF2CC')
-             .setHorizontalAlignment('center')
-             .setBorder(true, true, true, true, false, false);
-      }
-      row += 1;
-
-      // Monthly rows
-      for (var fbmi = 0; fbmi < months.length; fbmi++) {
-        var fbmMName = months[fbmi].name;
-        var fbmMf = monthFinancials[fbmMName];
-
-        sheet.getRange(row, 1).setValue(fbmMName)
-             .setFontSize(10).setHorizontalAlignment('left')
-             .setBorder(true, true, true, true, false, false);
-        sheet.getRange(row, 2).setValue(fbmMf.fbmDays)
-             .setFontSize(10).setHorizontalAlignment('center')
-             .setBorder(true, true, true, true, false, false);
-        sheet.getRange(row, 3).setValue(fbmMf.fbmRevenue)
-             .setNumberFormat('$#,##0.00')
-             .setFontSize(10).setHorizontalAlignment('right')
-             .setBorder(true, true, true, true, false, false);
-        var fbmCostCell = sheet.getRange(row, 4);
-        fbmCostCell.setValue(fbmMf.fbmCost)
-             .setNumberFormat('$#,##0.00')
-             .setFontSize(10).setHorizontalAlignment('right')
-             .setBorder(true, true, true, true, false, false);
-        if (fbmMf.fbmCost > 0) {
-          fbmCostCell.setBackground(COLORS.FBM);
-        }
-        row += 1;
-      }
-
-      // Total row
-      sheet.getRange(row, 1).setValue('TOTAL')
-           .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('left')
-           .setBorder(true, true, true, true, false, false)
-           .setBackground('#FFF2CC');
-      sheet.getRange(row, 2).setValue(totalFbmDays)
-           .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center')
-           .setBorder(true, true, true, true, false, false)
-           .setBackground('#FFF2CC');
-      sheet.getRange(row, 3).setValue(totalFbmRev)
-           .setNumberFormat('$#,##0.00')
-           .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
-           .setBorder(true, true, true, true, false, false)
-           .setBackground('#FFF2CC');
-      sheet.getRange(row, 4).setValue(totalFbmCost)
-           .setNumberFormat('$#,##0.00')
-           .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
-           .setBorder(true, true, true, true, false, false)
-           .setBackground('#FFF2CC');
-    }
+    sheet.getRange(row, 7).setValue(grandNet)
+         .setNumberFormat('-$#,##0;$#,##0;$0')
+         .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
+         .setBorder(true, true, true, true, false, false)
+         .setBackground(grandNet < 0 ? COLORS.OOS : '#D6E4F0');
   }
 
   // ── Bold the day numbers in each cell ──
