@@ -222,8 +222,10 @@ function runWaterfall(cfg) {
                     fbmOnHand > 0;
 
     // Pre-compute effective velocities for both channels
+    // FBA uses the global conversion rate; FBM uses its own (captures Buy Box loss + lower conversion)
     var fbaEffVel = Math.round(fbaVelocity * (cfg.conversionRate / 100) * 100) / 100;
-    var fbmEffVel = Math.round(fbmVelocity * (cfg.conversionRate / 100) * 100) / 100;
+    var fbmConvRate = (cfg.fbmConversionRate > 0) ? cfg.fbmConversionRate : cfg.conversionRate;
+    var fbmEffVel = Math.round(fbmVelocity * (fbmConvRate / 100) * 100) / 100;
 
     // Phase 1: FBA — sell from FBA if available (unless FBM forced)
     if (fbaAvail > 0 && !fbmForced) {
@@ -333,6 +335,8 @@ function runWaterfall(cfg) {
       unfulfilledUnits:  unfulfilledUnits,
       soldFrom:          channel,
       conversionRate:    cfg.conversionRate,
+      fbmConversionRate: fbmConvRate,
+      fbaEffVelocity:    fbaEffVel,
       effectiveVelocity: effectiveVelocity,
       effectivePrice:    effectivePrice,
       fbmCostPerUnit:    fbmCostPerUnit,

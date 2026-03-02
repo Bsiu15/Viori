@@ -662,6 +662,15 @@
           </div>
         </div>
         <div class="field">
+          <label>FBM conversion rate (%)
+            <span class="info-tip" tabindex="0">i<span class="tip-text">What % of your FBA demand do you capture when selling FBM? Accounts for Buy Box loss, no Prime badge, and lower conversion. 100% = no drop (same as FBA). 40% = you sell 40% as many units on FBM days. Check your historical FBM vs FBA velocity to estimate this.</span></span>
+          </label>
+          <div class="currency-wrap">
+            <span class="prefix">%</span>
+            <input type="number" id="FBM_CONVERSION_RATE" min="0" max="100" step="1" value="100">
+          </div>
+        </div>
+        <div class="field">
           <label>FBM start date override
             <span class="info-tip" tabindex="0">i<span class="tip-text">Force FBM selling to start on this date, even if FBA has stock. By default, FBM activates automatically when FBA runs out.</span></span>
           </label>
@@ -1200,7 +1209,7 @@
       'FBM_VEL_OVERRIDE_1_START', 'FBM_VEL_OVERRIDE_1_END', 'FBM_VEL_OVERRIDE_1_VALUE',
       'FBM_VEL_OVERRIDE_2_START', 'FBM_VEL_OVERRIDE_2_END', 'FBM_VEL_OVERRIDE_2_VALUE',
       'FBM_VEL_OVERRIDE_3_START', 'FBM_VEL_OVERRIDE_3_END', 'FBM_VEL_OVERRIDE_3_VALUE',
-      'FBM_SELLING_PRICE', 'FBM_FULFILLMENT_COST', 'FBM_START_DATE_OVERRIDE',
+      'FBM_SELLING_PRICE', 'FBM_FULFILLMENT_COST', 'FBM_CONVERSION_RATE', 'FBM_START_DATE_OVERRIDE',
       'DAILY_VELOCITY',
       'VEL_OVERRIDE_1_START', 'VEL_OVERRIDE_1_END', 'VEL_OVERRIDE_1_VALUE',
       'VEL_OVERRIDE_2_START', 'VEL_OVERRIDE_2_END', 'VEL_OVERRIDE_2_VALUE',

@@ -192,6 +192,7 @@ function readSkuSettings(skuId) {
     fbmVelOverrides:       fbmVelOverrides,
     fbmSellingPrice:       fbmSellingPrice,
     fbmFulfillmentCost:    fbmFulfillmentCost,
+    fbmConversionRate:     readNum(ss, p + '__FBM_CONVERSION_RATE'),
     fbmStartDateOverride:  readDate(ss, p + '__FBM_START_DATE_OVERRIDE')
   };
 }

@@ -353,9 +353,9 @@ function buildSummaryTab(allResults) {
     finRow += 1;
 
     // Headers
-    var finHeaders = ['SKU', 'OOS Days', 'Lost Revenue', 'FBM Saved', 'FBM Cost', 'Net Impact'];
-    var finColSpans = [5, 2, 3, 3, 3, 3];
-    var finHdrBgs   = ['#E2EFDA', '#E2EFDA', COLORS.OOS, '#C6EFCE', '#FFF2CC', '#D6E4F0'];
+    var finHeaders = ['SKU', 'OOS Days', 'Lost Revenue', 'FBM Revenue', 'Demand Penalty', 'FBM Cost', 'Net Impact'];
+    var finColSpans = [4, 2, 3, 3, 3, 2, 2];
+    var finHdrBgs   = ['#E2EFDA', '#E2EFDA', COLORS.OOS, '#C6EFCE', '#FFC7CE', '#FFF2CC', '#D6E4F0'];
 
     var hCol = 1;
     for (var fh = 0; fh < finHeaders.length; fh++) {
@@ -373,7 +373,7 @@ function buildSummaryTab(allResults) {
     finRow += 1;
 
     // Grand totals accumulators
-    var grandOosDays = 0, grandLostRev = 0, grandFbmSaved = 0, grandFbmCost = 0;
+    var grandOosDays = 0, grandLostRev = 0, grandFbmSaved = 0, grandFbmCost = 0, grandFbmPenalty = 0;
 
     // ── Compute all SKU financial data in memory first ──
     var finRowData = []; // array of { values: [...], bgs: [...], bold: bool }
@@ -387,7 +387,7 @@ function buildSummaryTab(allResults) {
       var pastEffVel = (skuCfg && skuCfg.dailyVelocity) ? skuCfg.dailyVelocity : 0;
       var pastRev = pastDays * pastEffVel * price;
 
-      var projOosDays = 0, projLostRev = 0, projFbmSaved = 0, projFbmCost = 0;
+      var projOosDays = 0, projLostRev = 0, projFbmSaved = 0, projFbmCost = 0, projFbmFbaEquiv = 0;
       var fbmPrice = (skuCfg && skuCfg.fbmSellingPrice > 0) ? skuCfg.fbmSellingPrice : price;
 
       for (var di = 0; di < snaps.length; di++) {
@@ -400,25 +400,34 @@ function buildSummaryTab(allResults) {
         if (snap.soldFromFbm > 0) {
           projFbmSaved += snap.soldFromFbm * fbmPrice;
           projFbmCost += snap.soldFromFbm * (snap.fbmCostPerUnit || 0);
+          // FBA-equivalent revenue for demand penalty
+          if (snap.soldFromFba === 0) {
+            projFbmFbaEquiv += snap.fbaEffVelocity * price;
+          } else {
+            projFbmFbaEquiv += snap.soldFromFbm * price;
+          }
         }
       }
 
       var skuOosDays = pastDays + projOosDays;
       var skuLostRev = pastRev + projLostRev;
-      var skuNetImpact = -(skuLostRev + projFbmCost);
+      var skuFbmPenalty = Math.max(0, projFbmFbaEquiv - projFbmSaved);
+      var skuNetImpact = -(skuLostRev) + projFbmSaved - projFbmCost - skuFbmPenalty;
 
       grandOosDays += skuOosDays;
       grandLostRev += skuLostRev;
       grandFbmSaved += projFbmSaved;
       grandFbmCost += projFbmCost;
+      grandFbmPenalty += skuFbmPenalty;
 
       finRowData.push({
-        values: [skuResult.skuDef.id, skuOosDays, skuLostRev, projFbmSaved, projFbmCost, skuNetImpact],
+        values: [skuResult.skuDef.id, skuOosDays, skuLostRev, projFbmSaved, skuFbmPenalty, projFbmCost, skuNetImpact],
         bgs: [
           null,
           skuOosDays > 0 ? COLORS.OOS : null,
           skuLostRev > 0 ? COLORS.OOS : null,
           projFbmSaved > 0 ? '#C6EFCE' : null,
+          skuFbmPenalty > 0 ? '#FFC7CE' : null,
           projFbmCost > 0 ? '#FFF2CC' : null,
           skuNetImpact < 0 ? '#D6E4F0' : '#C6EFCE'
         ],
@@ -427,14 +436,15 @@ function buildSummaryTab(allResults) {
     }
 
     // Totals row
-    var grandNet = -(grandLostRev + grandFbmCost);
+    var grandNet = -(grandLostRev) + grandFbmSaved - grandFbmCost - grandFbmPenalty;
     finRowData.push({
-      values: ['ALL SKUs TOTAL', grandOosDays, grandLostRev, grandFbmSaved, grandFbmCost, grandNet],
+      values: ['ALL SKUs TOTAL', grandOosDays, grandLostRev, grandFbmSaved, grandFbmPenalty, grandFbmCost, grandNet],
       bgs: [
         '#F2F2F2',
         grandOosDays > 0 ? COLORS.OOS : '#F2F2F2',
         grandLostRev > 0 ? COLORS.OOS : '#F2F2F2',
         grandFbmSaved > 0 ? '#C6EFCE' : '#F2F2F2',
+        grandFbmPenalty > 0 ? '#FFC7CE' : '#F2F2F2',
         grandFbmCost > 0 ? '#FFF2CC' : '#F2F2F2',
         grandNet < 0 ? '#D6E4F0' : '#C6EFCE'
       ],

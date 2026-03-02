@@ -66,6 +66,7 @@ var SKU_INPUT_ROWS = [
   { key: 'FBM_VEL_OVERRIDE_3_VALUE', label: 'FBM velocity override 3: units/day',         defaultVal: '',   format: 'number',  fbmVelOverrideNum: 3 },
   { key: 'FBM_SELLING_PRICE',     label: 'FBM selling price ($)',                          defaultVal: '',   format: 'currency' },
   { key: 'FBM_FULFILLMENT_COST',  label: 'FBM fulfillment cost per unit ($)',              defaultVal: '',   format: 'currency' },
+  { key: 'FBM_CONVERSION_RATE',  label: 'FBM conversion rate (%)',                        defaultVal: 100,  format: 'percent'  },
   { key: 'FBM_START_DATE_OVERRIDE', label: 'FBM start date override (manual)',             defaultVal: '',   format: 'date'    },
   // ── Sales Velocity ──
   { key: 'DAILY_VELOCITY',        label: 'Daily sales velocity (units/day)',              defaultVal: 0,    format: 'number'  },
