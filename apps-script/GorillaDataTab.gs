@@ -64,8 +64,8 @@ function buildGorillaDataTab() {
   sheet.clear();
   sheet.clearFormats();
 
-  // Ensure enough columns and rows (11 FBA cols + 1 spacer + 6 FBM cols = 18)
-  var requiredCols = 18;
+  // Ensure enough columns and rows (11 FBA + 1 spacer + 5 FBM + 1 spacer + 2 diagnostic = 20)
+  var requiredCols = 20;
   var requiredRows = skus.length + 1;
   var currentCols  = sheet.getMaxColumns();
   var currentRows  = sheet.getMaxRows();
@@ -230,6 +230,48 @@ function buildGorillaDataTab() {
     sheet.getRange(2, 17, skus.length, 1).setNumberFormat('$#,##0.00'); // Price
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // DIAGNOSTIC COLUMNS (R-S): Raw formulas WITHOUT IFERROR so actual errors
+  // (#NAME?, #ERROR!, etc.) are visible instead of silently becoming 0.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // Col R: Spacer
+  sheet.getRange(1, 18).setValue('').setBackground('#F5F5F5');
+
+  // FBA diagnostic header (col S = 19)
+  sheet.getRange(1, 19)
+       .setValue('FBA Test')
+       .setFontWeight('bold')
+       .setFontSize(9)
+       .setBackground('#FCE4EC')
+       .setBorder(true, true, true, true, false, false)
+       .setHorizontalAlignment('center');
+
+  // FBM diagnostic header (col T = 20)
+  sheet.getRange(1, 20)
+       .setValue('FBM Test')
+       .setFontWeight('bold')
+       .setFontSize(9)
+       .setBackground('#FCE4EC')
+       .setBorder(true, true, true, true, false, false)
+       .setHorizontalAlignment('center');
+
+  for (var di = 0; di < skus.length; di++) {
+    var diagRow  = di + 2;
+    var diagSkuCell = 'A' + diagRow;
+    var diagFbmCell = 'M' + diagRow;
+
+    // Col S: Raw FBA GORILLA_INVENTORY (no IFERROR) — shows actual error if broken
+    sheet.getRange(diagRow, 19).setFormula(
+      '=GORILLA_INVENTORY(' + sellerRef + ', ' + diagSkuCell + ', ' + mktRef + ', "fulfillable")'
+    );
+
+    // Col T: Raw FBM GORILLA_INVENTORY (no IFERROR) — only if FBM SKU is set
+    sheet.getRange(diagRow, 20).setFormula(
+      '=IF(' + diagFbmCell + '<>"", GORILLA_INVENTORY(' + sellerRef + ', ' + diagFbmCell + ', ' + mktRef + ', "fulfillable"), "no FBM SKU")'
+    );
+  }
+
   // ── Column widths ──
   sheet.setColumnWidth(1, 200);
   for (var c = 2; c <= 11; c++) {
@@ -240,6 +282,9 @@ function buildGorillaDataTab() {
   for (var fc = 14; fc <= 17; fc++) {
     sheet.setColumnWidth(fc, 130);
   }
+  sheet.setColumnWidth(18, 20);  // Spacer
+  sheet.setColumnWidth(19, 140); // FBA Test
+  sheet.setColumnWidth(20, 140); // FBM Test
 
   // ── Header notes (ELI5 + Settings mapping) ──
   sheet.getRange(1, 1).setNote(
@@ -340,6 +385,25 @@ function buildGorillaDataTab() {
     'May differ from FBA price. Used when the forecast switches\n' +
     'to FBM fulfillment to calculate revenue impact.\n\n' +
     'Settings field: "FBM selling price"'
+  );
+
+  // ── Diagnostic column notes ──
+  sheet.getRange(1, 19).setNote(
+    'FBA CONNECTION TEST\n' +
+    'This column uses the SAME Gorilla formula as col B (Available)\n' +
+    'but WITHOUT the IFERROR wrapper.\n\n' +
+    'If Gorilla is working: you\'ll see a number (same as col B).\n' +
+    'If broken, you\'ll see the actual error:\n' +
+    '  #NAME? → Gorilla ROI add-on not installed or not authorized\n' +
+    '  #ERROR! → Bad Seller ID, SKU, or marketplace\n' +
+    '  Loading... → Still computing (wait 30-60 seconds)\n\n' +
+    'This column is for diagnostics only — it does NOT feed into the forecast.'
+  );
+  sheet.getRange(1, 20).setNote(
+    'FBM CONNECTION TEST\n' +
+    'Same as FBA Test but using your FBM SKU ID.\n' +
+    'Shows "no FBM SKU" if no FBM SKU is configured for that product.\n\n' +
+    'If you see #NAME? or #ERROR! here, the same fix applies as the FBA test.'
   );
 
   sheet.setFrozenRows(1);
