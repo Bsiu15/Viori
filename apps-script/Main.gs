@@ -279,6 +279,12 @@ function saveSkuSettingsFromDialog(skuId, values) {
 
     var val = values[key];
 
+    // Text fields are never Gorilla-linked — write directly and skip Gorilla checks
+    if (textFields.indexOf(key) > -1) {
+      range.setValue(val || '');
+      continue;
+    }
+
     if (isGorillaCell) {
       // Compare: if the sidebar value matches the current formula result, skip (preserve formula)
       var currentVal = range.getValue();
@@ -301,10 +307,7 @@ function saveSkuSettingsFromDialog(skuId, values) {
       continue;
     }
 
-    if (textFields.indexOf(key) > -1) {
-      // Text field: write as-is
-      range.setValue(val || '');
-    } else if (dateFields.indexOf(key) > -1) {
+    if (dateFields.indexOf(key) > -1) {
       // Date field: convert "yyyy-mm-dd" string to Date, or clear
       if (val && val !== '') {
         var parts = val.split('-');
