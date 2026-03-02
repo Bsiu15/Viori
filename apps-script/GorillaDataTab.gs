@@ -573,3 +573,72 @@ function linkSettingsToGorilla(force) {
 
   SpreadsheetApp.flush();
 }
+
+/**
+ * Links just the FBM fields for a single SKU to the Gorilla Data tab.
+ * Called automatically when a user saves an FBM SKU ID from the sidebar.
+ *
+ * This is a targeted version of the FBM portion of linkSettingsToGorilla()
+ * that runs fast (only touches 3 cells + velocity overrides for one SKU).
+ *
+ * @param {string} skuId  The SKU whose FBM fields should be linked
+ */
+function linkFbmForSku(skuId) {
+  var ss   = SpreadsheetApp.getActiveSpreadsheet();
+  var skus = getSkus();
+
+  // Find this SKU's index → Gorilla Data row
+  var skuIndex = -1;
+  for (var i = 0; i < skus.length; i++) {
+    if (skus[i].id === skuId) {
+      skuIndex = i;
+      break;
+    }
+  }
+  if (skuIndex === -1) return;
+
+  var prefix     = namedRangePrefix(skuId);
+  var gorillaRow = skuIndex + 2;
+
+  // Link FBM data fields (FBM_ONHAND, FBM_DAILY_VELOCITY, FBM_SELLING_PRICE)
+  for (var fbmKey in GORILLA_FBM_LINK_MAP) {
+    if (!GORILLA_FBM_LINK_MAP.hasOwnProperty(fbmKey)) continue;
+
+    var rangeName = prefix + '__' + fbmKey;
+    var cell = ss.getRangeByName(rangeName);
+    if (!cell) continue;
+
+    // If already linked to Gorilla Data, skip
+    var existingFormula = cell.getFormula();
+    if (existingFormula && existingFormula.indexOf(GORILLA_DATA_TAB_NAME) > -1) continue;
+
+    var gorillaCol = GORILLA_FBM_LINK_MAP[fbmKey];
+    cell.setFormula("=IFERROR('" + GORILLA_DATA_TAB_NAME + "'!" + gorillaCol + gorillaRow + ", 0)");
+    cell.setBackground('#E8F0FE');
+    cell.setNote('Auto-populated from Gorilla ROI (FBM SKU). Type a number to override.');
+  }
+
+  // Link FBM velocity override auto-calc formulas
+  for (var ovr = 1; ovr <= 3; ovr++) {
+    var ovrKey  = 'FBM_VEL_OVERRIDE_' + ovr + '_VALUE';
+    var ovrCell = ss.getRangeByName(prefix + '__' + ovrKey);
+    if (!ovrCell) continue;
+
+    // Skip if already linked
+    var ovrFormula = ovrCell.getFormula();
+    if (ovrFormula && (ovrFormula.indexOf(GORILLA_DATA_TAB_NAME) > -1 ||
+                       ovrFormula.indexOf('GORILLA_') > -1)) continue;
+
+    // Skip if user has a non-empty manual value
+    if (!ovrFormula) {
+      var ovrVal = ovrCell.getValue();
+      if (ovrVal !== '' && ovrVal !== 0 && ovrVal !== null && ovrVal !== undefined) continue;
+    }
+
+    ovrCell.setFormula(buildFbmVelAutoCalcFormula(prefix, ovr));
+    ovrCell.setBackground('#E8F0FE');
+    ovrCell.setNote('Auto-calculated from Gorilla ROI historical data using your FBM SKU ID.\nType a number to manually override.');
+  }
+
+  SpreadsheetApp.flush();
+}

@@ -267,6 +267,7 @@ function saveSkuSettingsFromDialog(skuId, values) {
   ];
 
   var textFields = ['FBM_SKU_ID'];
+  var fbmSkuWasSet = false;
 
   for (var key in values) {
     var rangeName = p + '__' + key;
@@ -283,6 +284,10 @@ function saveSkuSettingsFromDialog(skuId, values) {
     // Text fields are never Gorilla-linked — write directly and skip Gorilla checks
     if (textFields.indexOf(key) > -1) {
       range.setValue(val || '');
+      // If FBM SKU ID was just set, flag it so we can link FBM fields after the loop
+      if (key === 'FBM_SKU_ID' && val && val !== '') {
+        fbmSkuWasSet = true;
+      }
       continue;
     }
 
@@ -328,6 +333,12 @@ function saveSkuSettingsFromDialog(skuId, values) {
   }
 
   SpreadsheetApp.flush();
+
+  // If FBM SKU ID was set, auto-link FBM fields to Gorilla Data tab
+  // so FBM data starts flowing into the forecast automatically
+  if (fbmSkuWasSet) {
+    linkFbmForSku(skuId);
+  }
 }
 
 /**
@@ -380,11 +391,30 @@ function waitForGorillaFormulas(skuId) {
     }
   }
 
+  // Also watch FBM Gorilla Data tab cells if an FBM SKU is configured
+  // (these need time for the Gorilla add-on to compute)
+  var gorillaSheet = ss.getSheetByName(GORILLA_DATA_TAB_NAME);
+  if (gorillaSheet) {
+    var skus = getSkus();
+    for (var si = 0; si < skus.length; si++) {
+      if (skus[si].id === skuId) {
+        var fbmSkuCell = gorillaSheet.getRange(si + 2, 13); // Col M: FBM SKU
+        var fbmSkuVal  = fbmSkuCell.getDisplayValue();
+        if (fbmSkuVal && fbmSkuVal !== '') {
+          // FBM SKU is set — watch the FBM Available (col N) and FBM Price (col Q)
+          cellsToWatch.push(gorillaSheet.getRange(si + 2, 14)); // FBM Available
+          cellsToWatch.push(gorillaSheet.getRange(si + 2, 17)); // FBM Price
+        }
+        break;
+      }
+    }
+  }
+
   if (cellsToWatch.length === 0) return;
 
   // Show a toast so the user knows why the sidebar is paused
   ss.toast(
-    'Waiting for Gorilla to compute velocity override data — this may take up to 45 seconds…',
+    'Waiting for Gorilla to compute data — this may take up to 45 seconds…',
     'Gorilla ROI',
     45
   );
@@ -633,134 +663,6 @@ function diagnoseGorillaStatus() {
   lines.push('');
   lines.push('TIP: Check the "FBA Test" and "FBM Test" columns on the');
   lines.push('Gorilla Data tab to see raw errors for each SKU.');
-
-  ui.alert('Gorilla Connection Status', lines.join('\n'), ui.ButtonSet.OK);
-}
-
-/**
- * Diagnoses Gorilla ROI connection status and shows a report.
- * Checks config, formula presence, cell values, and raw diagnostic columns
- * to pinpoint exactly why Gorilla data isn't populating.
- *
- * Accessible from: Menu > Inventory Forecast > Check Gorilla Status
- */
-function diagnoseGorillaStatus() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var ui = SpreadsheetApp.getUi();
-  var lines = [];
-
-  // ── 1. Check Gorilla configuration ──
-  var sellerRange = ss.getRangeByName('GLOBAL__GORILLA_SELLER_ID');
-  if (!sellerRange || !sellerRange.getValue()) {
-    ui.alert(
-      'Gorilla Status',
-      'SELLER ID NOT SET\n\n' +
-      'Enter your Gorilla ROI Seller ID in the Settings tab (Global section),\n' +
-      'then run: Menu > Inventory Forecast > Refresh Gorilla Data.',
-      ui.ButtonSet.OK
-    );
-    return;
-  }
-  lines.push('Seller ID: ' + sellerRange.getValue());
-
-  var mktRange = ss.getRangeByName('GLOBAL__GORILLA_MARKETPLACE');
-  lines.push('Marketplace: ' + (mktRange ? mktRange.getValue() || '(empty)' : '(not set)'));
-
-  var lookRange = ss.getRangeByName('GLOBAL__GORILLA_LOOKBACK_DAYS');
-  lines.push('Lookback Days: ' + (lookRange ? lookRange.getValue() || '(empty)' : '(not set)'));
-  lines.push('');
-
-  // ── 2. Check Gorilla Data tab ──
-  var sheet = ss.getSheetByName(GORILLA_DATA_TAB_NAME);
-  if (!sheet) {
-    lines.push('GORILLA DATA TAB MISSING');
-    lines.push('Run: Menu > Inventory Forecast > Refresh Gorilla Data');
-    ui.alert('Gorilla Status', lines.join('\n'), ui.ButtonSet.OK);
-    return;
-  }
-
-  // ── 3. Scan each SKU ──
-  var skus = getSkus();
-  var counts = { ok: 0, zero: 0, loading: 0, nameErr: 0, otherErr: 0, noFormula: 0 };
-
-  for (var i = 0; i < skus.length; i++) {
-    var row = i + 2;
-    var skuLine = skus[i].id + ':  ';
-
-    // Check the raw diagnostic column (col S = 19) first — it shows actual errors
-    var testCell = sheet.getRange(row, 19);
-    var testFormula = testCell.getFormula();
-    var testDisplay = testCell.getDisplayValue();
-
-    if (testFormula && testDisplay) {
-      if (testDisplay === '#NAME?') {
-        skuLine += '#NAME? — Gorilla add-on not installed/authorized';
-        counts.nameErr++;
-      } else if (testDisplay.charAt(0) === '#') {
-        skuLine += testDisplay + ' — Gorilla returned an error';
-        counts.otherErr++;
-      } else if (testDisplay === 'Loading...') {
-        skuLine += 'Loading... (wait 30-60s)';
-        counts.loading++;
-      } else {
-        // Raw formula returned a value — check if main cols have data
-        var availVal = sheet.getRange(row, 2).getDisplayValue();
-        if (availVal && availVal !== '0' && availVal !== '') {
-          skuLine += 'OK (Available: ' + availVal + ')';
-          counts.ok++;
-        } else {
-          skuLine += 'Connected but value is ' + (availVal || '0');
-          counts.zero++;
-        }
-      }
-    } else {
-      // No diagnostic formula — check the main Available col
-      var mainFormula = sheet.getRange(row, 2).getFormula();
-      if (!mainFormula) {
-        skuLine += 'NO FORMULAS — run Refresh Gorilla Data';
-        counts.noFormula++;
-      } else {
-        var mainVal = sheet.getRange(row, 2).getDisplayValue();
-        skuLine += 'Value: ' + (mainVal || '(empty)') + ' (no diagnostic col — run Refresh Gorilla Data to add it)';
-        counts.zero++;
-      }
-    }
-
-    lines.push(skuLine);
-  }
-
-  lines.push('');
-  lines.push('--- SUMMARY ---');
-  if (counts.ok > 0)        lines.push('Working: ' + counts.ok);
-  if (counts.zero > 0)      lines.push('Zero/empty: ' + counts.zero);
-  if (counts.loading > 0)   lines.push('Still loading: ' + counts.loading);
-  if (counts.nameErr > 0)   lines.push('#NAME? errors: ' + counts.nameErr);
-  if (counts.otherErr > 0)  lines.push('Other errors: ' + counts.otherErr);
-  if (counts.noFormula > 0) lines.push('Missing formulas: ' + counts.noFormula);
-
-  // ── 4. Suggest fixes ──
-  if (counts.nameErr > 0 || counts.otherErr > 0 || counts.noFormula > 0 || counts.loading > 0) {
-    lines.push('');
-    lines.push('--- FIXES ---');
-    if (counts.nameErr > 0) {
-      lines.push('#NAME? fix: Install the Gorilla ROI add-on from the Google Workspace Marketplace, then authorize it. Reload the sheet afterward.');
-    }
-    if (counts.otherErr > 0) {
-      lines.push('#ERROR! fix: Verify your Seller ID, marketplace, and SKU IDs match your Gorilla ROI account and Seller Central.');
-    }
-    if (counts.loading > 0) {
-      lines.push('Loading fix: Wait 30-60 seconds for Gorilla to fetch data from Amazon. Check again after.');
-    }
-    if (counts.noFormula > 0) {
-      lines.push('Missing formula fix: Run Menu > Inventory Forecast > Refresh Gorilla Data.');
-    }
-    if (counts.zero > 0 && counts.nameErr === 0 && counts.otherErr === 0) {
-      lines.push('Zero values: If the diagnostic col (S) shows a number but main cols show 0, the IFERROR formulas are working — your SKU may genuinely have 0 units for that category.');
-    }
-  }
-
-  lines.push('');
-  lines.push('TIP: Open the "Gorilla Data" tab and look at columns S-T (FBA Test / FBM Test) to see raw errors for each SKU.');
 
   ui.alert('Gorilla Connection Status', lines.join('\n'), ui.ButtonSet.OK);
 }
