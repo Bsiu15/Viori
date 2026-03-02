@@ -340,7 +340,7 @@ function buildSummaryTab(allResults) {
   if (anyFinancials) {
     var finRow = warnEndRow + 2;
 
-    // Column layout: SKU(5) + OOS Days(2) + Lost Rev(3) + FBM Saved(3) + FBM Cost(3) + Net Impact(3) = 19
+    // Column layout: SKU(4) + FBA%(2) + OOS Days(2) + Lost Rev(3) + FBM Gap(3) + FBM Cost(2) + Impact(3) = 19
     var finTotalCols = 19;
 
     // Title
@@ -352,10 +352,10 @@ function buildSummaryTab(allResults) {
          .setFontColor(COLORS.HEADER_FG);
     finRow += 1;
 
-    // Headers
-    var finHeaders = ['SKU', 'OOS Days', 'Lost Revenue', 'FBM Revenue', 'Demand Penalty', 'FBM Cost', 'Net Impact'];
-    var finColSpans = [4, 2, 3, 3, 3, 2, 2];
-    var finHdrBgs   = ['#E2EFDA', '#E2EFDA', COLORS.OOS, '#C6EFCE', '#FFC7CE', '#FFF2CC', '#D6E4F0'];
+    // Headers — everything framed as cost / loss (no green FBM column)
+    var finHeaders = ['SKU', 'FBA In-Stock %', 'OOS Days', 'Lost Revenue', 'FBM Rev. Gap', 'FBM Cost', 'Total Impact'];
+    var finColSpans = [4, 2, 2, 3, 3, 2, 3];
+    var finHdrBgs   = ['#E2EFDA', '#E2EFDA', COLORS.OOS, COLORS.OOS, COLORS.OOS, '#FFF2CC', '#D6E4F0'];
 
     var hCol = 1;
     for (var fh = 0; fh < finHeaders.length; fh++) {
@@ -373,7 +373,8 @@ function buildSummaryTab(allResults) {
     finRow += 1;
 
     // Grand totals accumulators
-    var grandOosDays = 0, grandLostRev = 0, grandFbmSaved = 0, grandFbmCost = 0, grandFbmPenalty = 0;
+    var grandOosDays = 0, grandLostRev = 0, grandFbmCost = 0, grandFbmPenalty = 0;
+    var grandFbaDays = 0, grandTotalDays = 0;
 
     // ── Compute all SKU financial data in memory first ──
     var finRowData = []; // array of { values: [...], bgs: [...], bold: bool }
@@ -387,11 +388,13 @@ function buildSummaryTab(allResults) {
       var pastEffVel = (skuCfg && skuCfg.dailyVelocity) ? skuCfg.dailyVelocity : 0;
       var pastRev = pastDays * pastEffVel * price;
 
-      var projOosDays = 0, projLostRev = 0, projFbmSaved = 0, projFbmCost = 0, projFbmFbaEquiv = 0;
+      var projOosDays = 0, projLostRev = 0, projFbmCost = 0, projFbmFbaEquiv = 0, projFbmSaved = 0;
+      var skuFbaDays = 0;
       var fbmPrice = (skuCfg && skuCfg.fbmSellingPrice > 0) ? skuCfg.fbmSellingPrice : price;
 
       for (var di = 0; di < snaps.length; di++) {
         var snap = snaps[di];
+        if (snap.soldFromFba > 0) skuFbaDays++;
         if (snap.unfulfilledUnits > 0 && price > 0) {
           projOosDays += 1;
           var dayPrice = (snap.effectivePrice > 0) ? snap.effectivePrice : price;
@@ -402,7 +405,7 @@ function buildSummaryTab(allResults) {
           projFbmCost += snap.soldFromFbm * (snap.fbmCostPerUnit || 0);
           // FBA-equivalent revenue for demand penalty
           if (snap.soldFromFba === 0) {
-            projFbmFbaEquiv += snap.fbaEffVelocity * price;
+            projFbmFbaEquiv += (snap.fbaEffVelocity || 0) * price;
           } else {
             projFbmFbaEquiv += snap.soldFromFbm * price;
           }
@@ -412,41 +415,45 @@ function buildSummaryTab(allResults) {
       var skuOosDays = pastDays + projOosDays;
       var skuLostRev = pastRev + projLostRev;
       var skuFbmPenalty = Math.max(0, projFbmFbaEquiv - projFbmSaved);
-      var skuNetImpact = -(skuLostRev) + projFbmSaved - projFbmCost - skuFbmPenalty;
+      // Total cost of not being on FBA = all losses
+      var skuTotalImpact = -(skuLostRev + skuFbmPenalty + projFbmCost);
+      var skuInStockRate = snaps.length > 0 ? Math.round((skuFbaDays / snaps.length) * 100) : 0;
 
       grandOosDays += skuOosDays;
       grandLostRev += skuLostRev;
-      grandFbmSaved += projFbmSaved;
       grandFbmCost += projFbmCost;
       grandFbmPenalty += skuFbmPenalty;
+      grandFbaDays += skuFbaDays;
+      grandTotalDays += snaps.length;
 
       finRowData.push({
-        values: [skuResult.skuDef.id, skuOosDays, skuLostRev, projFbmSaved, skuFbmPenalty, projFbmCost, skuNetImpact],
+        values: [skuResult.skuDef.id, skuInStockRate + '%', skuOosDays, skuLostRev, skuFbmPenalty, projFbmCost, skuTotalImpact],
         bgs: [
           null,
+          skuInStockRate >= 95 ? '#C6EFCE' : (skuInStockRate >= 80 ? '#FFF2CC' : COLORS.OOS),
           skuOosDays > 0 ? COLORS.OOS : null,
           skuLostRev > 0 ? COLORS.OOS : null,
-          projFbmSaved > 0 ? '#C6EFCE' : null,
-          skuFbmPenalty > 0 ? '#FFC7CE' : null,
+          skuFbmPenalty > 0 ? COLORS.OOS : null,
           projFbmCost > 0 ? '#FFF2CC' : null,
-          skuNetImpact < 0 ? '#D6E4F0' : '#C6EFCE'
+          '#D6E4F0'
         ],
         bold: false
       });
     }
 
     // Totals row
-    var grandNet = -(grandLostRev) + grandFbmSaved - grandFbmCost - grandFbmPenalty;
+    var grandNet = -(grandLostRev + grandFbmPenalty + grandFbmCost);
+    var catalogInStockRate = grandTotalDays > 0 ? Math.round((grandFbaDays / grandTotalDays) * 100) : 0;
     finRowData.push({
-      values: ['ALL SKUs TOTAL', grandOosDays, grandLostRev, grandFbmSaved, grandFbmPenalty, grandFbmCost, grandNet],
+      values: ['ALL SKUs TOTAL', catalogInStockRate + '%', grandOosDays, grandLostRev, grandFbmPenalty, grandFbmCost, grandNet],
       bgs: [
         '#F2F2F2',
+        catalogInStockRate >= 95 ? '#C6EFCE' : (catalogInStockRate >= 80 ? '#FFF2CC' : COLORS.OOS),
         grandOosDays > 0 ? COLORS.OOS : '#F2F2F2',
         grandLostRev > 0 ? COLORS.OOS : '#F2F2F2',
-        grandFbmSaved > 0 ? '#C6EFCE' : '#F2F2F2',
-        grandFbmPenalty > 0 ? '#FFC7CE' : '#F2F2F2',
+        grandFbmPenalty > 0 ? COLORS.OOS : '#F2F2F2',
         grandFbmCost > 0 ? '#FFF2CC' : '#F2F2F2',
-        grandNet < 0 ? '#D6E4F0' : '#C6EFCE'
+        '#D6E4F0'
       ],
       bold: true
     });
@@ -476,8 +483,8 @@ function buildSummaryTab(allResults) {
     var allAligns  = [];
     var allFormats = [];
     var allWeights = [];
-    var fieldAligns  = ['left', 'center', 'right', 'right', 'right', 'right'];
-    var fieldFormats = ['', '', '$#,##0', '$#,##0', '$#,##0', '$#,##0;-$#,##0;$0'];
+    var fieldAligns  = ['left', 'center', 'center', 'right', 'right', 'right', 'right'];
+    var fieldFormats = ['', '', '', '$#,##0', '$#,##0', '$#,##0', '$#,##0;-$#,##0;$0'];
 
     for (var ar = 0; ar < dataRows; ar++) {
       var rowAligns  = [];

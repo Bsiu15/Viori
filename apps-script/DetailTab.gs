@@ -352,8 +352,16 @@ function buildDetailTab(skuDef, data, cfg) {
     var grandRev  = pastLostRev + totalLostRev;
     // FBM demand penalty = what FBA would have earned − what FBM actually earned
     var fbmDemandPenalty = Math.max(0, totalFbmFbaEquiv - totalFbmSaved);
-    // NET = -(OOS lost revenue) + FBM revenue − FBM cost − FBM demand penalty
-    var grandNet  = -(grandRev) + totalFbmSaved - totalFbmCost - fbmDemandPenalty;
+    // NET = all losses: OOS lost rev + FBM demand gap + FBM fulfillment cost
+    var grandNet  = -(grandRev + fbmDemandPenalty + totalFbmCost);
+
+    // ── FBA In-Stock Rate ──
+    var totalForecastDays = data.length;
+    var fbaDays = 0;
+    for (var isd = 0; isd < data.length; isd++) {
+      if (data[isd].soldFromFba > 0) fbaDays++;
+    }
+    var fbaInStockRate = totalForecastDays > 0 ? Math.round((fbaDays / totalForecastDays) * 100) : 0;
 
     // ── Helper: fill a 7-wide row array (pad remaining cols with fillVal) ──
     function padRow(arr, fillVal) {
@@ -452,7 +460,7 @@ function buildDetailTab(skuDef, data, cfg) {
     );
 
     // ────────────────────────────────────────────────────────────
-    // SECTION 2 — FBM Backup Performance
+    // SECTION 2 — FBM Fallback Cost (NOT on FBA = bad)
     // ────────────────────────────────────────────────────────────
 
     // Spacer
@@ -460,7 +468,7 @@ function buildDetailTab(skuDef, data, cfg) {
 
     // Title
     pushRow(
-      ['FBM Backup Performance — ' + skuDef.id, '', '', '', '', '', ''],
+      ['FBM Fallback Cost — ' + skuDef.id, '', '', '', '', '', ''],
       [COLORS.HEADER, COLORS.HEADER, COLORS.HEADER, COLORS.HEADER, COLORS.HEADER, COLORS.HEADER, COLORS.HEADER],
       ['bold','bold','bold','bold','bold','bold','bold'],
       ['left','left','left','left','left','left','left'],
@@ -468,10 +476,10 @@ function buildDetailTab(skuDef, data, cfg) {
     );
     var fbmTitleIdx = finValues.length - 1;
 
-    // Headers
+    // Headers — everything framed as loss/cost
     pushRow(
-      ['Month', 'FBM Days', 'FBM Revenue', 'If FBA', 'Demand Penalty', 'Fulfill. Cost', ''],
-      ['#E2EFDA', '#E2EFDA', '#C6EFCE', '#BDD7EE', '#FFC7CE', '#FFF2CC', null],
+      ['Month', 'Days Off FBA', 'FBA Would Earn', 'FBM Earned', 'Revenue Gap', 'Fulfill. Cost', ''],
+      ['#E2EFDA', COLORS.OOS, '#BDD7EE', '#FFF2CC', COLORS.OOS, '#FFF2CC', null],
       ['bold', 'bold', 'bold', 'bold', 'bold', 'bold', 'normal'],
       ['center', 'center', 'center', 'center', 'center', 'center', 'center'],
       ['', '', '', '', '', '', '']
@@ -480,7 +488,7 @@ function buildDetailTab(skuDef, data, cfg) {
     // Monthly rows
     if (fbmMonths.length === 0) {
       pushRow(
-        ['No FBM backup activity', '', '', '', '', '', ''],
+        ['All days on FBA — no FBM fallback needed', '', '', '', '', '', ''],
         [null, null, null, null, null, null, null],
         ['normal','normal','normal','normal','normal','normal','normal'],
         ['center','center','center','center','center','center','center'],
@@ -492,8 +500,8 @@ function buildDetailTab(skuDef, data, cfg) {
       var fb = fbmMonths[fi];
       var fbPenalty = Math.max(0, fb.fbmFbaEquivRevenue - fb.fbmRevenue);
       pushRow(
-        [fb.name, fb.fbmDays, fb.fbmRevenue, fb.fbmFbaEquivRevenue, fbPenalty, fb.fbmCost, ''],
-        [null, null, fb.fbmRevenue > 0 ? '#C6EFCE' : null, fb.fbmFbaEquivRevenue > 0 ? '#BDD7EE' : null, fbPenalty > 0 ? '#FFC7CE' : null, fb.fbmCost > 0 ? '#FFF2CC' : null, null],
+        [fb.name, fb.fbmDays, fb.fbmFbaEquivRevenue, fb.fbmRevenue, fbPenalty, fb.fbmCost, ''],
+        [null, fb.fbmDays > 0 ? COLORS.OOS : null, null, fb.fbmRevenue > 0 ? '#FFF2CC' : null, fbPenalty > 0 ? COLORS.OOS : null, fb.fbmCost > 0 ? '#FFF2CC' : null, null],
         ['normal', 'normal', 'normal', 'normal', 'normal', 'normal', 'normal'],
         ['left', 'center', 'right', 'right', 'right', 'right', 'center'],
         ['', '', '$#,##0', '$#,##0', '$#,##0', '$#,##0', '']
@@ -502,8 +510,8 @@ function buildDetailTab(skuDef, data, cfg) {
 
     // Projected
     pushRow(
-      ['PROJECTED', totalFbmDays, totalFbmSaved, totalFbmFbaEquiv, fbmDemandPenalty, totalFbmCost, ''],
-      ['#F2F2F2', '#F2F2F2', totalFbmSaved > 0 ? '#C6EFCE' : '#F2F2F2', totalFbmFbaEquiv > 0 ? '#BDD7EE' : '#F2F2F2', fbmDemandPenalty > 0 ? '#FFC7CE' : '#F2F2F2', totalFbmCost > 0 ? '#FFF2CC' : '#F2F2F2', null],
+      ['PROJECTED', totalFbmDays, totalFbmFbaEquiv, totalFbmSaved, fbmDemandPenalty, totalFbmCost, ''],
+      ['#F2F2F2', totalFbmDays > 0 ? COLORS.OOS : '#F2F2F2', '#F2F2F2', totalFbmSaved > 0 ? '#FFF2CC' : '#F2F2F2', fbmDemandPenalty > 0 ? COLORS.OOS : '#F2F2F2', totalFbmCost > 0 ? '#FFF2CC' : '#F2F2F2', null],
       ['bold', 'bold', 'bold', 'bold', 'bold', 'bold', 'normal'],
       ['left', 'center', 'right', 'right', 'right', 'right', 'center'],
       ['', '', '$#,##0', '$#,##0', '$#,##0', '$#,##0', '']
@@ -526,13 +534,13 @@ function buildDetailTab(skuDef, data, cfg) {
     );
     var netTitleIdx = finValues.length - 1;
 
-    // Net summary rows (label col 1, value col 2, rest filled with bg)
+    // Net summary rows — everything framed as cost / loss (no green FBM line)
     var netDefs = [
-      { label: 'Total Lost Revenue (OOS)',   value: -grandRev,           bg: grandRev > 0 ? COLORS.OOS : '#F2F2F2',              fmt: '$#,##0;-$#,##0;$0', bold: true },
-      { label: 'FBM Revenue',               value: totalFbmSaved,       bg: totalFbmSaved > 0 ? '#C6EFCE' : '#F2F2F2',          fmt: '$#,##0',             bold: true },
-      { label: 'FBM Demand Penalty',        value: -fbmDemandPenalty,   bg: fbmDemandPenalty > 0 ? COLORS.OOS : '#F2F2F2',      fmt: '$#,##0;-$#,##0;$0', bold: true },
-      { label: 'FBM Fulfillment Cost',      value: -totalFbmCost,       bg: totalFbmCost > 0 ? '#FFF2CC' : '#F2F2F2',           fmt: '$#,##0;-$#,##0;$0', bold: true },
-      { label: 'NET IMPACT',               value: grandNet,             bg: '#D6E4F0',                                           fmt: '$#,##0;-$#,##0;$0', bold: true }
+      { label: 'Lost Revenue (Stock-Outs)',  value: -grandRev,           bg: grandRev > 0 ? COLORS.OOS : '#F2F2F2',              fmt: '$#,##0;-$#,##0;$0', bold: true },
+      { label: 'FBM Revenue Gap (vs FBA)',   value: -fbmDemandPenalty,   bg: fbmDemandPenalty > 0 ? COLORS.OOS : '#F2F2F2',      fmt: '$#,##0;-$#,##0;$0', bold: true },
+      { label: 'FBM Fulfillment Cost',       value: -totalFbmCost,       bg: totalFbmCost > 0 ? '#FFF2CC' : '#F2F2F2',           fmt: '$#,##0;-$#,##0;$0', bold: true },
+      { label: 'TOTAL NOT-ON-FBA COST',      value: grandNet,            bg: '#D6E4F0',                                           fmt: '$#,##0;-$#,##0;$0', bold: true },
+      { label: 'FBA In-Stock Rate',          value: fbaInStockRate + '%', bg: fbaInStockRate >= 95 ? '#C6EFCE' : (fbaInStockRate >= 80 ? '#FFF2CC' : COLORS.OOS), fmt: '', bold: true }
     ];
     var netMergeStartIdx = finValues.length;
     for (var ni = 0; ni < netDefs.length; ni++) {
