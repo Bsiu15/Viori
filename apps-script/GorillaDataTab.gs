@@ -93,45 +93,73 @@ function buildGorillaDataTab() {
   var mktRef    = 'GLOBAL__GORILLA_MARKETPLACE';
   var lookRef   = 'GLOBAL__GORILLA_LOOKBACK_DAYS';
 
-  // ── Data rows — one per SKU ──
-  // Write formulas in batches of 2 SKUs with delays between batches
-  // to avoid triggering Google's custom-function rate limit.
-  var BATCH_SIZE = 2;
+  // ── Data rows ──
+  // Per Gorilla ROI docs, use SKU RANGES (A2:A<n>) instead of individual
+  // cell refs so each column makes ONE bulk API call. This drops the total
+  // from 9 × N_SKUs calls down to just 9 calls and avoids the Google
+  // quota error ("unusually high number of requests").
 
+  // Col A: SKU IDs (plain values)
+  var skuValues = [];
   for (var i = 0; i < skus.length; i++) {
-    var row   = i + 2;
-    var skuId = skus[i].id;
-
-    // Build the full row of formulas for this SKU
-    var rowFormulas = [
-      skuId, // Col A: SKU ID (plain value, replaced below)
-      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "fulfillable"), 0)',
-      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "inbound_working"), 0)',
-      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "inbound_shipped"), 0)',
-      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "inbound_receiving"), 0)',
-      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "reserved"), 0)',
-      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "transfer"), 0)',
-      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', A' + row + ', ' + mktRef + ', "unsellable"), 0)',
-      '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', A' + row +
-        ', "Shipped", "NO", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)',
-      '=IFERROR(I' + row + '/' + lookRef + ', 0)',
-      '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', A' + row + ', ' + mktRef + '), 0)'
-    ];
-
-    // Col A: SKU ID (plain value)
-    sheet.getRange(row, 1).setValue(skuId);
-    // Cols B-K: formulas (batch write the 10 formula cells in one call)
-    sheet.getRange(row, 2, 1, 10).setFormulas([rowFormulas.slice(1)]);
-
-    // After every BATCH_SIZE SKUs, flush and pause so Google doesn't
-    // throttle the Gorilla ROI custom-function evaluations.
-    if ((i + 1) % BATCH_SIZE === 0 && i < skus.length - 1) {
-      SpreadsheetApp.flush();
-      Utilities.sleep(3000);
-      ss.toast('Loading SKUs ' + (i + 2) + '-' + Math.min(i + 1 + BATCH_SIZE, skus.length) +
-               ' of ' + skus.length + '...', 'Gorilla ROI', 5);
-    }
+    skuValues.push([skus[i].id]);
   }
+  sheet.getRange(2, 1, skus.length, 1).setValues(skuValues);
+
+  var lastRow  = skus.length + 1;
+  var skuRange = 'A2:A' + lastRow;
+
+  // Col B: Available (fulfillable)
+  sheet.getRange(2, 2).setFormula(
+    '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuRange + ', ' + mktRef + ', "fulfillable"), 0)'
+  );
+
+  // Col C: Inbound Working
+  sheet.getRange(2, 3).setFormula(
+    '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuRange + ', ' + mktRef + ', "inbound_working"), 0)'
+  );
+
+  // Col D: Inbound Shipped
+  sheet.getRange(2, 4).setFormula(
+    '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuRange + ', ' + mktRef + ', "inbound_shipped"), 0)'
+  );
+
+  // Col E: Inbound Receiving
+  sheet.getRange(2, 5).setFormula(
+    '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuRange + ', ' + mktRef + ', "inbound_receiving"), 0)'
+  );
+
+  // Col F: Reserved
+  sheet.getRange(2, 6).setFormula(
+    '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuRange + ', ' + mktRef + ', "reserved"), 0)'
+  );
+
+  // Col G: FC Transfer
+  sheet.getRange(2, 7).setFormula(
+    '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuRange + ', ' + mktRef + ', "transfer"), 0)'
+  );
+
+  // Col H: Unsellable (total unfulfillable)
+  sheet.getRange(2, 8).setFormula(
+    '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuRange + ', ' + mktRef + ', "unsellable"), 0)'
+  );
+
+  // Col I: Sales Count (last N days)
+  // MCF param: "Exclude" omits Multi-Channel Fulfillment orders (FBA only)
+  sheet.getRange(2, 9).setFormula(
+    '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + skuRange +
+    ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
+  );
+
+  // Col J: Daily Velocity (derived: sales / lookback days)
+  sheet.getRange(2, 10).setFormula(
+    '=ARRAYFORMULA(IFERROR(I2:I' + lastRow + '/' + lookRef + ', 0))'
+  );
+
+  // Col K: Selling Price
+  sheet.getRange(2, 11).setFormula(
+    '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + skuRange + ', ' + mktRef + '), 0)'
+  );
 
   // ── Formatting ──
   if (skus.length > 0) {

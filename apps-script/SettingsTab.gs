@@ -116,7 +116,7 @@ function buildVelAutoCalcFormula(prefix, skuId, overrideNum) {
   return '=IF(AND(' + startRef + '<>"", ' + endRef + '<>""), ' +
     'IFERROR(' +
       'GORILLA_SALESCOUNT(GLOBAL__GORILLA_SELLER_ID, "Custom", GLOBAL__GORILLA_MARKETPLACE, "' + skuId + '", ' +
-        '"Shipped", "NO", ' +
+        '"Shipped", "Exclude", ' +
         'TEXT(' + startRef + ' - 365, "yyyy-mm-dd"), ' +
         'TEXT(' + endRef + ' - 365, "yyyy-mm-dd")) ' +
       '/ (' + endRef + ' - ' + startRef + ' + 1)' +
