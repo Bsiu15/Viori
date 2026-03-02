@@ -312,6 +312,67 @@ function saveSkuSettingsFromDialog(skuId, values) {
 }
 
 /**
+ * Waits for Gorilla-formula velocity override cells to resolve after dates
+ * have been saved. Polls up to 45 seconds for GORILLA_SALESCOUNT formulas
+ * to return numeric values, then returns.
+ *
+ * Called by the sidebar between save and recalculate so the user sees
+ * the computed units/day when the form reloads.
+ *
+ * @param {string} skuId
+ */
+function waitForGorillaFormulas(skuId) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var p  = namedRangePrefix(skuId);
+
+  // Find velocity override VALUE cells that have Gorilla formulas
+  // AND whose start/end dates are now filled in (meaning they should compute)
+  var cellsToWatch = [];
+  for (var v = 1; v <= 3; v++) {
+    var valRange = ss.getRangeByName(p + '__VEL_OVERRIDE_' + v + '_VALUE');
+    if (!valRange) continue;
+    var formula = valRange.getFormula();
+    if (!formula || formula.indexOf('GORILLA_') === -1) continue;
+
+    var startRange = ss.getRangeByName(p + '__VEL_OVERRIDE_' + v + '_START');
+    var endRange   = ss.getRangeByName(p + '__VEL_OVERRIDE_' + v + '_END');
+    if (!startRange || !endRange) continue;
+    var sv = startRange.getValue();
+    var ev = endRange.getValue();
+    if (sv && sv !== '' && ev && ev !== '') {
+      cellsToWatch.push(valRange);
+    }
+  }
+
+  if (cellsToWatch.length === 0) return;
+
+  // Poll: check every 3 seconds, up to 45 seconds total
+  var maxWait  = 45000;
+  var interval = 3000;
+  var elapsed  = 0;
+
+  while (elapsed < maxWait) {
+    Utilities.sleep(interval);
+    SpreadsheetApp.flush();
+    elapsed += interval;
+
+    var allResolved = true;
+    for (var i = 0; i < cellsToWatch.length; i++) {
+      var val = cellsToWatch[i].getValue();
+      // Still loading if empty, "Loading...", or a formula error
+      if (val === '' || val === null || val === undefined ||
+          (typeof val === 'string' && (val === 'Loading...' || val.charAt(0) === '#'))) {
+        allResolved = false;
+        break;
+      }
+    }
+
+    if (allResolved) return;
+  }
+  // Timeout — proceed anyway; the value will populate on next refresh
+}
+
+/**
  * First-time setup: initializes the registry, builds the Settings tab
  * with defaults, then runs a full forecast calculation.
  */

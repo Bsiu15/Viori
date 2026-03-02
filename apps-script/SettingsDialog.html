@@ -1119,13 +1119,23 @@
       showStatus('<span class="spinner"></span> Saving...', '');
 
       google.script.run.withSuccessHandler(function() {
-        showStatus('<span class="spinner"></span> Recalculating...', '');
+        showStatus('<span class="spinner"></span> Waiting for Gorilla data...', '');
         google.script.run.withSuccessHandler(function() {
-          showStatus('Saved and recalculated', 'success');
-          loadSku(); // Refresh form to show auto-calculated values
+          showStatus('<span class="spinner"></span> Recalculating...', '');
+          google.script.run.withSuccessHandler(function() {
+            showStatus('Saved and recalculated', 'success');
+            loadSku(); // Refresh form to show auto-calculated values
+          }).withFailureHandler(function(err) {
+            showStatus('Error recalculating: ' + err.message, 'error');
+          }).recalculateSku(skuId);
         }).withFailureHandler(function(err) {
-          showStatus('Error recalculating: ' + err.message, 'error');
-        }).recalculateSku(skuId);
+          // Polling timeout is non-fatal — proceed with recalculate
+          showStatus('<span class="spinner"></span> Recalculating...', '');
+          google.script.run.withSuccessHandler(function() {
+            showStatus('Saved and recalculated', 'success');
+            loadSku();
+          }).recalculateSku(skuId);
+        }).waitForGorillaFormulas(skuId);
       }).withFailureHandler(function(err) {
         showStatus('Error saving: ' + err.message, 'error');
       }).saveSkuSettingsFromDialog(skuId, values);
@@ -1137,13 +1147,23 @@
       showStatus('<span class="spinner"></span> Saving...', '');
 
       google.script.run.withSuccessHandler(function() {
-        showStatus('<span class="spinner"></span> Recalculating all...', '');
+        showStatus('<span class="spinner"></span> Waiting for Gorilla data...', '');
         google.script.run.withSuccessHandler(function() {
-          showStatus('Saved and recalculated all', 'success');
-          loadSku(); // Refresh form to show auto-calculated values
+          showStatus('<span class="spinner"></span> Recalculating all...', '');
+          google.script.run.withSuccessHandler(function() {
+            showStatus('Saved and recalculated all', 'success');
+            loadSku(); // Refresh form to show auto-calculated values
+          }).withFailureHandler(function(err) {
+            showStatus('Error: ' + err.message, 'error');
+          }).recalculateAll();
         }).withFailureHandler(function(err) {
-          showStatus('Error: ' + err.message, 'error');
-        }).recalculateAll();
+          // Polling timeout is non-fatal — proceed with recalculate
+          showStatus('<span class="spinner"></span> Recalculating all...', '');
+          google.script.run.withSuccessHandler(function() {
+            showStatus('Saved and recalculated all', 'success');
+            loadSku();
+          }).recalculateAll();
+        }).waitForGorillaFormulas(skuId);
       }).withFailureHandler(function(err) {
         showStatus('Error saving: ' + err.message, 'error');
       }).saveSkuSettingsFromDialog(skuId, values);
