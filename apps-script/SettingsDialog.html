@@ -175,27 +175,75 @@
     }
     .btn-save-all:hover { background: #2d9249; }
 
-    /* ── Status ── */
-    .status {
-      text-align: center;
-      padding: 8px;
+    /* ── Status bar (sticky top overlay) ── */
+    .status-bar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      margin: -16px -16px 0;
+      transform: translateY(-100%);
+      opacity: 0;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+      pointer-events: none;
+    }
+    .status-bar.show {
+      transform: translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .status-inner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 16px;
       font-size: 12px;
-      color: #5f6368;
+      font-weight: 500;
+      color: #1a73e8;
+      background: #e8f0fe;
+      border-bottom: 1px solid #d2e3fc;
+    }
+    .status-bar.success .status-inner {
+      color: #137333;
+      background: #e6f4ea;
+      border-bottom-color: #ceead6;
+    }
+    .status-bar.error .status-inner {
+      color: #c5221f;
+      background: #fce8e6;
+      border-bottom-color: #f5c6c2;
+    }
+    .status-progress {
+      height: 2px;
+      background: #d2e3fc;
+      overflow: hidden;
+    }
+    .status-bar.success .status-progress,
+    .status-bar.error .status-progress {
       display: none;
     }
-    .status.show { display: block; }
-    .status.success { color: #34a853; }
-    .status.error { color: #ea4335; }
+    .status-progress-fill {
+      height: 100%;
+      width: 30%;
+      background: #1a73e8;
+      border-radius: 1px;
+      animation: progress-slide 1.2s ease-in-out infinite;
+    }
+    @keyframes progress-slide {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(430%); }
+    }
     .spinner {
       display: inline-block;
       width: 14px; height: 14px;
-      border: 2px solid #dadce0;
+      border: 2px solid rgba(26,115,232,0.25);
       border-top-color: #1a73e8;
       border-radius: 50%;
       animation: spin 0.6s linear infinite;
-      vertical-align: middle;
-      margin-right: 6px;
+      flex-shrink: 0;
     }
+    .status-bar.success .spinner,
+    .status-bar.error .spinner { display: none; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ── Override groups ── */
@@ -316,6 +364,15 @@
   </style>
 </head>
 <body>
+
+  <!-- Sticky loading bar — always visible at the top -->
+  <div id="statusBar" class="status-bar">
+    <div class="status-inner">
+      <span class="spinner"></span>
+      <span id="statusText"></span>
+    </div>
+    <div class="status-progress"><div class="status-progress-fill"></div></div>
+  </div>
 
   <h2>SKU Settings</h2>
 
@@ -819,8 +876,6 @@
     <button class="btn btn-primary" onclick="saveSku()">Save This SKU</button>
     <button class="btn btn-save-all" onclick="saveAndRecalc()">Save + Recalculate</button>
   </div>
-
-  <div id="status" class="status"></div>
 
   <script>
     // ── State ──
@@ -1462,13 +1517,22 @@
     }
 
     // ── Status messages ──
+    var statusTimer = null;
     function showStatus(msg, type) {
-      var el = document.getElementById('status');
-      el.innerHTML = msg;
-      el.className = 'status show' + (type ? ' ' + type : '');
+      var bar  = document.getElementById('statusBar');
+      var text = document.getElementById('statusText');
+      // Strip spinner HTML from msg — we have a CSS spinner built in
+      text.textContent = msg.replace(/<[^>]*>/g, '').trim();
+      bar.className = 'status-bar show' + (type ? ' ' + type : '');
+      // Auto-hide success/error messages after a few seconds
+      if (statusTimer) clearTimeout(statusTimer);
+      if (type === 'success' || type === 'error') {
+        statusTimer = setTimeout(function() { hideStatus(); }, type === 'error' ? 5000 : 3000);
+      }
     }
     function hideStatus() {
-      document.getElementById('status').className = 'status';
+      document.getElementById('statusBar').className = 'status-bar';
+      if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; }
     }
   </script>
 
