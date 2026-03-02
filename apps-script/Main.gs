@@ -28,8 +28,9 @@ function onOpen() {
     .addSeparator()
     .addItem('Recalculate All', 'recalculateAll')
     .addItem('Refresh Gorilla Data', 'refreshGorillaData')
-    .addItem('Rebuild Settings', 'buildSettingsTab')
+    .addItem('Reset All SKU Settings', 'resetAllSkuSettings')
     .addSeparator()
+    .addItem('Rebuild Settings', 'buildSettingsTab')
     .addItem('Initial Setup (first time)', 'initialSetup')
     .addItem('Install Auto-Refresh Trigger', 'installTrigger')
     .addToUi();
@@ -643,6 +644,102 @@ function installTrigger() {
     .forSpreadsheet(ss)
     .onEdit()
     .create();
+}
+
+/**
+ * Resets ALL per-SKU settings back to defaults and force-links every
+ * Gorilla-connectable field. Clears stale manual overrides that block
+ * auto-population.
+ *
+ * Preserves:
+ *   - Global settings (forecast dates, Gorilla Seller ID, marketplace, lookback)
+ *   - SKU registry (which SKUs exist)
+ *
+ * Resets:
+ *   - Every inventory field → 0 (or default from SKU_INPUT_ROWS)
+ *   - Every date field → empty
+ *   - FBA auto-calc formula → restored
+ *   - All Gorilla-linkable cells → re-linked with force=true
+ */
+function resetAllSkuSettings() {
+  var ui = SpreadsheetApp.getUi();
+  var response = ui.alert(
+    'Reset All SKU Settings?',
+    'This will clear ALL manual values for every SKU and restore Gorilla ROI auto-population.\n\n' +
+    'What gets reset:\n' +
+    '• All inventory numbers → 0\n' +
+    '• All shipment dates → empty\n' +
+    '• All velocity overrides → auto-calculated from Gorilla\n' +
+    '• FBA (available for sale) → auto-calculated\n\n' +
+    'What stays the same:\n' +
+    '• Forecast date range\n' +
+    '• Gorilla Seller ID, marketplace, lookback days\n' +
+    '• Your SKU list\n\n' +
+    'This cannot be undone. Continue?',
+    ui.ButtonSet.YES_NO
+  );
+
+  if (response !== ui.Button.YES) return;
+
+  var ss   = SpreadsheetApp.getActiveSpreadsheet();
+  var skus = getSkus();
+
+  // Check if Gorilla is configured
+  var sellerRange = ss.getRangeByName('GLOBAL__GORILLA_SELLER_ID');
+  var gorillaActive = sellerRange && sellerRange.getValue() && sellerRange.getValue() !== '';
+
+  ss.toast('Resetting all SKU settings...', 'Reset', 5);
+
+  for (var i = 0; i < skus.length; i++) {
+    var prefix = namedRangePrefix(skus[i].id);
+
+    for (var j = 0; j < SKU_INPUT_ROWS.length; j++) {
+      var input     = SKU_INPUT_ROWS[j];
+      var rangeName = prefix + '__' + input.key;
+      var cell      = ss.getRangeByName(rangeName);
+      if (!cell) continue;
+
+      // Clear formatting from any previous override indicators
+      cell.setBackground(null);
+      cell.clearNote();
+
+      // Write the default value
+      if (input.format === 'date') {
+        if (input.defaultVal instanceof Date) {
+          cell.setValue(input.defaultVal);
+        } else {
+          cell.setValue('');
+        }
+      } else if (input.defaultVal !== '' && input.defaultVal !== null && input.defaultVal !== undefined) {
+        cell.setValue(input.defaultVal);
+      } else {
+        cell.setValue('');
+      }
+    }
+
+    // Restore FBA auto-calc formula
+    var fbaRange = ss.getRangeByName(prefix + '__FBA_OVERRIDE');
+    if (fbaRange) {
+      fbaRange.setFormula('=' + prefix + '__ONHAND_AVAILABLE');
+    }
+  }
+
+  SpreadsheetApp.flush();
+
+  // Force re-link all Gorilla fields (overwrites the 0s we just wrote)
+  if (gorillaActive) {
+    buildGorillaDataTab();
+    linkSettingsToGorilla(true);
+    ss.toast(
+      'Settings reset and Gorilla links restored! Wait ~30s for Gorilla formulas to refresh, then run "Recalculate All".',
+      'Reset Complete', 10
+    );
+  } else {
+    ss.toast(
+      'Settings reset to defaults. Run "Recalculate All" to update the forecast.',
+      'Reset Complete', 10
+    );
+  }
 }
 
 /**
