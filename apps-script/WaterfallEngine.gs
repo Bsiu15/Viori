@@ -63,6 +63,15 @@ function runWaterfall(cfg) {
   var ltlArrival   = computeArrivalDate(cfg.ltlSendDate,   cfg.ltlTransitDays);
   var adhocArrival = computeArrivalDate(cfg.adhocSendDate,  cfg.adhocTransitDays);
 
+  // Inbound Shipped: units already on a truck to Amazon.
+  // Arrival = START_DATE + est. days to receive (default 5).
+  var inboundShippedUnits = cfg.inboundShippedUnits || 0;
+  var inboundShippedArrival = null;
+  if (inboundShippedUnits > 0) {
+    var shippedTransit = cfg.inboundShippedTransitDays || 5;
+    inboundShippedArrival = addDays(START_DATE, shippedTransit);
+  }
+
   // ── Track FBA processing batches (each has an "available on" date) ──
   // A batch: { units: N, availableOn: Date }
   var procBatches = [];
@@ -128,6 +137,14 @@ function runWaterfall(cfg) {
       var adhocAvailOn = addDays(today, cfg.fbaCheckinDelay);
       procBatches.push({ units: cfg.adhocUnits, availableOn: adhocAvailOn });
       events.push('Ad-hoc shipment arrived (' + cfg.adhocUnits + ' units) — enters FBA processing');
+    }
+
+    // Inbound Shipped arrival (units Amazon already knows are coming)
+    if (inboundShippedArrival && sameDay(today, inboundShippedArrival) && inboundShippedUnits > 0) {
+      fbaProc += inboundShippedUnits;
+      var shippedAvailOn = addDays(today, cfg.fbaCheckinDelay);
+      procBatches.push({ units: inboundShippedUnits, availableOn: shippedAvailOn });
+      events.push('Inbound Shipped arrived (' + inboundShippedUnits + ' units) — enters FBA processing');
     }
 
     // ── Step 2: Check if any processing batches clear check-in today ──

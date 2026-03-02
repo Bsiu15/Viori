@@ -22,6 +22,7 @@ var SKU_INPUT_ROWS = [
   // ── Starting Inventory: Inbound ──
   { key: 'INBOUND_WORKING',             label: 'Inbound: Working',                              defaultVal: 0,    format: 'number'  },
   { key: 'INBOUND_SHIPPED',             label: 'Inbound: Shipped',                              defaultVal: 0,    format: 'number'  },
+  { key: 'INBOUND_SHIPPED_TRANSIT_DAYS', label: 'Inbound: Shipped est. days to receive',        defaultVal: 5,    format: 'number'  },
   { key: 'INBOUND_RECEIVING',           label: 'Inbound: Receiving',                            defaultVal: 0,    format: 'number'  },
   // ── Starting Inventory: On-hand ──
   { key: 'ONHAND_AVAILABLE',            label: 'On-hand: Available',                             defaultVal: 0,    format: 'number'  },

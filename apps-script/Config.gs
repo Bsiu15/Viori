@@ -212,9 +212,10 @@ var GORILLA_DATA_TAB_NAME  = 'Gorilla Data';
  * 50  Selling price ($)
  * 51  DPP margin (%)
  * 52  Past OOS days (already experienced)
- * 53  (blank spacer row)
+ * 53  Inbound: Shipped est. days to receive
+ * 54  (blank spacer row)
  */
-var ROWS_PER_SKU_BLOCK = 53;
+var ROWS_PER_SKU_BLOCK = 54;
 
 /** Column A = labels, Column B = values in the Settings tab */
 var SETTINGS_LABEL_COL = 1;

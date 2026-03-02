@@ -367,9 +367,15 @@
             </div>
             <div class="field" id="fieldInboundShipped">
               <label>Shipped
-                <span class="info-tip" tabindex="0">i<span class="tip-text">Units on a truck heading to Amazon's warehouse.</span></span>
+                <span class="info-tip" tabindex="0">i<span class="tip-text">Units on a truck heading to Amazon's warehouse. These are modeled in the forecast — they arrive after the estimated transit days below, then go through FBA check-in.</span></span>
               </label>
               <input type="number" id="INBOUND_SHIPPED" value="0" min="0">
+            </div>
+            <div class="field" id="fieldInboundShippedTransit">
+              <label>Shipped: est. days to receive
+                <span class="info-tip" tabindex="0">i<span class="tip-text">How many more days until Amazon receives these shipped units. Once received, they still go through the FBA check-in delay before becoming available.</span></span>
+              </label>
+              <input type="number" id="INBOUND_SHIPPED_TRANSIT_DAYS" value="5" min="0">
             </div>
             <div class="field">
               <label>Receiving
@@ -917,7 +923,7 @@
     // ── Field ID lists ──
     var FIELD_IDS = [
       'FBA_OVERRIDE',
-      'INBOUND_WORKING', 'INBOUND_SHIPPED', 'INBOUND_RECEIVING',
+      'INBOUND_WORKING', 'INBOUND_SHIPPED', 'INBOUND_SHIPPED_TRANSIT_DAYS', 'INBOUND_RECEIVING',
       'ONHAND_AVAILABLE', 'ONHAND_FC_TRANSFER',
       'RESERVED_CUSTOMER_ORDER', 'RESERVED_FC_PROCESSING',
       'RESEARCHING',

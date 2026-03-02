@@ -113,6 +113,9 @@ function readSkuSettings(skuId) {
     fbmOnHand:         readNum(ss,  p + '__FBM_ONHAND'),
     // Customer orders → subtracted from FBA available on day 1 (already spoken for)
     customerOrders:    reservedCustOrder,
+    // Inbound Shipped → units on a truck heading to Amazon (arrives after transit delay)
+    inboundShippedUnits:      inboundShipped,
+    inboundShippedTransitDays: readNum(ss, p + '__INBOUND_SHIPPED_TRANSIT_DAYS'),
 
     // ── Granular inventory (informational — stored for display) ──
     inboundWorking:    inboundWorking,

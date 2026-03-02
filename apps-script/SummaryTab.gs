@@ -203,6 +203,120 @@ function buildSummaryTab(allResults) {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
+  // SECTION 2B: SHIPMENT DATA WARNINGS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  var warnings = []; // array of { skuId, type, message }
+
+  for (var ws = 0; ws < numSkus; ws++) {
+    var wCfg = allResults[ws].cfg;
+    var wSkuId = allResults[ws].skuDef.id;
+
+    // Check each shipment type: SPD, LTL, Ad-hoc
+    var shipments = [
+      { name: 'SPD',    units: wCfg.spdUnits,   sendDate: wCfg.spdSendDate,   transitDays: wCfg.spdTransitDays },
+      { name: 'LTL',    units: wCfg.ltlUnits,   sendDate: wCfg.ltlSendDate,   transitDays: wCfg.ltlTransitDays },
+      { name: 'Ad-hoc', units: wCfg.adhocUnits,  sendDate: wCfg.adhocSendDate,  transitDays: wCfg.adhocTransitDays }
+    ];
+
+    for (var wsi = 0; wsi < shipments.length; wsi++) {
+      var ship = shipments[wsi];
+      if (!ship.sendDate || !ship.units || ship.units <= 0) continue;
+
+      var estArrival = addDays(ship.sendDate, ship.transitDays || 0);
+
+      if (estArrival < today) {
+        // Arrival date has passed — likely already received
+        warnings.push({
+          skuId: wSkuId,
+          type: 'STALE',
+          message: ship.name + ' (' + ship.units + ' units) — expected arrival ' +
+            fmtDate(estArrival) + ' has passed. If received, these units now appear ' +
+            'in Inbound Receiving or Available. Remove this entry to avoid double-counting.'
+        });
+      } else if (ship.sendDate < today) {
+        // Send date passed but arrival still in future — just a heads-up
+        warnings.push({
+          skuId: wSkuId,
+          type: 'CHECK',
+          message: ship.name + ' (' + ship.units + ' units) — send date ' +
+            fmtDate(ship.sendDate) + ' has passed. If shipped, these units may now ' +
+            'show as Inbound Shipped in Gorilla. Verify transit time is still accurate.'
+        });
+      }
+    }
+  }
+
+  var warnEndRow = legendRow;
+  if (warnings.length > 0) {
+    var warnRow = legendRow + 2;
+
+    // Warning title — span across enough cols to be readable
+    var warnCols = 26; // SKU(5) + message(21)
+    sheet.getRange(warnRow, 1, 1, warnCols).merge()
+         .setValue('Shipment Data Warnings')
+         .setFontSize(11)
+         .setFontWeight('bold')
+         .setBackground('#FFF3CD')
+         .setFontColor('#856404');
+    warnRow += 1;
+
+    // Headers
+    var whCol = 1;
+    sheet.getRange(warnRow, whCol, 1, 5).merge()
+         .setValue('SKU')
+         .setFontWeight('bold').setFontSize(8).setHorizontalAlignment('center')
+         .setBackground('#FFF3CD').setBorder(true, true, true, true, false, false);
+    whCol += 5;
+    sheet.getRange(warnRow, whCol, 1, 3).merge()
+         .setValue('Status')
+         .setFontWeight('bold').setFontSize(8).setHorizontalAlignment('center')
+         .setBackground('#FFF3CD').setBorder(true, true, true, true, false, false);
+    whCol += 3;
+    sheet.getRange(warnRow, whCol, 1, 18).merge()
+         .setValue('Action Needed')
+         .setFontWeight('bold').setFontSize(8).setHorizontalAlignment('center')
+         .setBackground('#FFF3CD').setBorder(true, true, true, true, false, false);
+    warnRow += 1;
+
+    for (var wi = 0; wi < warnings.length; wi++) {
+      var warn = warnings[wi];
+      var wdCol = 1;
+
+      // SKU
+      sheet.getRange(warnRow, wdCol, 1, 5).merge()
+           .setValue(warn.skuId)
+           .setFontSize(8).setHorizontalAlignment('left')
+           .setBorder(true, true, true, true, false, false);
+      wdCol += 5;
+
+      // Status badge
+      var statusLabel = warn.type === 'STALE' ? 'STALE' : 'VERIFY';
+      var statusBg    = warn.type === 'STALE' ? COLORS.OOS : '#FFF3CD';
+      sheet.getRange(warnRow, wdCol, 1, 3).merge()
+           .setValue(statusLabel)
+           .setFontWeight('bold').setFontSize(8).setHorizontalAlignment('center')
+           .setBackground(statusBg)
+           .setBorder(true, true, true, true, false, false);
+      wdCol += 3;
+
+      // Message
+      sheet.getRange(warnRow, wdCol, 1, 18).merge()
+           .setValue(warn.message)
+           .setFontSize(8).setHorizontalAlignment('left')
+           .setWrap(true)
+           .setBorder(true, true, true, true, false, false);
+
+      warnRow += 1;
+    }
+
+    warnEndRow = warnRow;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
   // SECTION 3: OOS FINANCIAL IMPACT TABLE
   // ══════════════════════════════════════════════════════════════════════════
 
@@ -215,10 +329,10 @@ function buildSummaryTab(allResults) {
     }
   }
 
-  var finEndRow = legendRow; // track where financials end for calendar placement
+  var finEndRow = warnEndRow; // track where financials end for calendar placement
 
   if (anyFinancials) {
-    var finRow = legendRow + 2;
+    var finRow = warnEndRow + 2;
 
     // Define months for financial breakdown (dynamic from START_DATE → END_DATE)
     var finMonths = forecastMonthsShort();
