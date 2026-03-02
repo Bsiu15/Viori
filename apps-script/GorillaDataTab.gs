@@ -398,9 +398,13 @@ function linkSettingsToGorilla(force) {
       var cell = ss.getRangeByName(rangeName);
       if (!cell) continue;
 
-      // If the cell already has a Gorilla formula, skip (already linked)
+      // If the cell already has a Gorilla formula, re-apply blue indicator but skip formula write
       var existingFormula = cell.getFormula();
-      if (existingFormula && existingFormula.indexOf(GORILLA_DATA_TAB_NAME) > -1) continue;
+      if (existingFormula && existingFormula.indexOf(GORILLA_DATA_TAB_NAME) > -1) {
+        cell.setBackground('#E8F0FE');
+        cell.setNote('Auto-populated from Gorilla ROI. Type a number to override.');
+        continue;
+      }
 
       // If the cell has a non-zero user-entered value (no formula), skip to preserve override
       // — unless force=true (user explicitly ran Refresh Gorilla Data)
@@ -421,10 +425,20 @@ function linkSettingsToGorilla(force) {
       var ovrCell = ss.getRangeByName(prefix + '__' + ovrKey);
       if (!ovrCell) continue;
 
-      // Skip if already has a Gorilla-linked formula
+      var ovrNote = 'Auto-calculated from Gorilla ROI historical data.\n' +
+        'Pulls last year\'s shipped sales for the same date range\n' +
+        'and divides by the number of days to get daily velocity.\n\n' +
+        'Just enter the start and end dates — this value fills in automatically.\n' +
+        'Type a number to manually override.';
+
+      // If already has a Gorilla-linked formula, re-apply blue indicator but skip formula write
       var ovrFormula = ovrCell.getFormula();
       if (ovrFormula && (ovrFormula.indexOf(GORILLA_DATA_TAB_NAME) > -1 ||
-                         ovrFormula.indexOf('GORILLA_') > -1)) continue;
+                         ovrFormula.indexOf('GORILLA_') > -1)) {
+        ovrCell.setBackground('#E8F0FE');
+        ovrCell.setNote(ovrNote);
+        continue;
+      }
 
       // Skip if the user has a non-empty manual override
       // — unless force=true (user explicitly ran Refresh Gorilla Data)
@@ -435,13 +449,7 @@ function linkSettingsToGorilla(force) {
 
       ovrCell.setFormula(buildVelAutoCalcFormula(prefix, skus[i].id, ovr));
       ovrCell.setBackground('#E8F0FE');
-      ovrCell.setNote(
-        'Auto-calculated from Gorilla ROI historical data.\n' +
-        'Pulls last year\'s shipped sales for the same date range\n' +
-        'and divides by the number of days to get daily velocity.\n\n' +
-        'Just enter the start and end dates — this value fills in automatically.\n' +
-        'Type a number to manually override.'
-      );
+      ovrCell.setNote(ovrNote);
     }
 
     // Link FBM fields to Gorilla Data tab
@@ -452,8 +460,13 @@ function linkSettingsToGorilla(force) {
       var fbmCell = ss.getRangeByName(fbmRangeName);
       if (!fbmCell) continue;
 
+      // If already has a Gorilla formula, re-apply blue indicator but skip formula write
       var fbmExistingFormula = fbmCell.getFormula();
-      if (fbmExistingFormula && fbmExistingFormula.indexOf(GORILLA_DATA_TAB_NAME) > -1) continue;
+      if (fbmExistingFormula && fbmExistingFormula.indexOf(GORILLA_DATA_TAB_NAME) > -1) {
+        fbmCell.setBackground('#E8F0FE');
+        fbmCell.setNote('Auto-populated from Gorilla ROI (FBM SKU). Type a number to override.');
+        continue;
+      }
 
       if (!force && !fbmExistingFormula) {
         var fbmVal = fbmCell.getValue();
@@ -472,9 +485,20 @@ function linkSettingsToGorilla(force) {
       var fbmOvrCell = ss.getRangeByName(prefix + '__' + fbmOvrKey);
       if (!fbmOvrCell) continue;
 
+      var fbmOvrNote = 'Auto-calculated from Gorilla ROI historical data using your FBM SKU ID.\n' +
+        'Pulls last year\'s shipped sales for the same date range\n' +
+        'and divides by the number of days to get daily FBM velocity.\n\n' +
+        'Enter FBM SKU ID and override dates — this value fills in automatically.\n' +
+        'Type a number to manually override.';
+
+      // If already has a Gorilla-linked formula, re-apply blue indicator but skip formula write
       var fbmOvrFormula = fbmOvrCell.getFormula();
       if (fbmOvrFormula && (fbmOvrFormula.indexOf(GORILLA_DATA_TAB_NAME) > -1 ||
-                            fbmOvrFormula.indexOf('GORILLA_') > -1)) continue;
+                            fbmOvrFormula.indexOf('GORILLA_') > -1)) {
+        fbmOvrCell.setBackground('#E8F0FE');
+        fbmOvrCell.setNote(fbmOvrNote);
+        continue;
+      }
 
       if (!force && !fbmOvrFormula) {
         var fbmOvrVal = fbmOvrCell.getValue();
@@ -483,13 +507,7 @@ function linkSettingsToGorilla(force) {
 
       fbmOvrCell.setFormula(buildFbmVelAutoCalcFormula(prefix, fbmOvr));
       fbmOvrCell.setBackground('#E8F0FE');
-      fbmOvrCell.setNote(
-        'Auto-calculated from Gorilla ROI historical data using your FBM SKU ID.\n' +
-        'Pulls last year\'s shipped sales for the same date range\n' +
-        'and divides by the number of days to get daily FBM velocity.\n\n' +
-        'Enter FBM SKU ID and override dates — this value fills in automatically.\n' +
-        'Type a number to manually override.'
-      );
+      fbmOvrCell.setNote(fbmOvrNote);
     }
 
     // Default double-counting fields to 0 if empty, but respect manual overrides.

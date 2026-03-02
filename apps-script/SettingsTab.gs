@@ -235,7 +235,8 @@ function buildSettingsTab() {
           // Skip saving default-value (0) for Gorilla-linkable fields when Gorilla
           // is active. If a previous bug overwrote the Gorilla formula with 0,
           // treating 0 as "no saved value" lets the auto-link branch restore it.
-          var isGorillaField = savedGorillaSellerId && GORILLA_LINK_MAP.hasOwnProperty(svKey);
+          var isGorillaField = savedGorillaSellerId &&
+            (GORILLA_LINK_MAP.hasOwnProperty(svKey) || GORILLA_FBM_LINK_MAP.hasOwnProperty(svKey));
           if (isGorillaField && (svVal === 0 || svVal === '0')) {
             // Don't save — let the auto-link branch re-create the Gorilla formula
           } else if (svVal !== '' && svVal !== undefined && svVal !== null) {
