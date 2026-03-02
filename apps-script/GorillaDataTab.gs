@@ -104,10 +104,9 @@ function buildGorillaDataTab() {
   var lookRef   = 'GLOBAL__GORILLA_LOOKBACK_DAYS';
 
   // ── Data rows ──
-  // Per Gorilla ROI docs, use SKU RANGES (A2:A<n>) instead of individual
-  // cell refs so each column makes ONE bulk API call. This drops the total
-  // from 9 × N_SKUs calls down to just 9 calls and avoids the Google
-  // quota error ("unusually high number of requests").
+  // Each SKU gets its own formula per column to ensure reliable data population.
+  // Gorilla add-on custom functions don't reliably spill results when given
+  // range inputs, so we use individual cell references per row.
 
   // Col A: SKU IDs (plain values)
   var skuValues = [];
@@ -117,63 +116,45 @@ function buildGorillaDataTab() {
   sheet.getRange(2, 1, skus.length, 1).setValues(skuValues);
 
   var lastRow  = skus.length + 1;
-  var skuRange = 'A2:A' + lastRow;
 
-  // Col B: Available (fulfillable)
-  sheet.getRange(2, 2).setFormula(
-    '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuRange + ', ' + mktRef + ', "fulfillable"), 0)'
-  );
+  // Named range references used in formulas
+  var inventoryCategories = [
+    { col: 2,  category: 'fulfillable' },       // Col B: Available
+    { col: 3,  category: 'inbound_working' },    // Col C: Inbound Working
+    { col: 4,  category: 'inbound_shipped' },    // Col D: Inbound Shipped
+    { col: 5,  category: 'inbound_receiving' },  // Col E: Inbound Receiving
+    { col: 6,  category: 'reserved' },           // Col F: Reserved
+    { col: 7,  category: 'transfer' },           // Col G: FC Transfer
+    { col: 8,  category: 'unsellable' }          // Col H: Unsellable
+  ];
 
-  // Col C: Inbound Working
-  sheet.getRange(2, 3).setFormula(
-    '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuRange + ', ' + mktRef + ', "inbound_working"), 0)'
-  );
-
-  // Col D: Inbound Shipped
-  sheet.getRange(2, 4).setFormula(
-    '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuRange + ', ' + mktRef + ', "inbound_shipped"), 0)'
-  );
-
-  // Col E: Inbound Receiving
-  sheet.getRange(2, 5).setFormula(
-    '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuRange + ', ' + mktRef + ', "inbound_receiving"), 0)'
-  );
-
-  // Col F: Reserved
-  sheet.getRange(2, 6).setFormula(
-    '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuRange + ', ' + mktRef + ', "reserved"), 0)'
-  );
-
-  // Col G: FC Transfer
-  sheet.getRange(2, 7).setFormula(
-    '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuRange + ', ' + mktRef + ', "transfer"), 0)'
-  );
-
-  // Col H: Unsellable (total unfulfillable)
-  sheet.getRange(2, 8).setFormula(
-    '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuRange + ', ' + mktRef + ', "unsellable"), 0)'
-  );
-
-  // Col I: Sales Count (last N days)
-  // MCF param: "Exclude" omits Multi-Channel Fulfillment orders (FBA only)
-  // NOTE: GORILLA_SALESCOUNT does not spill results when given a SKU range
-  // (unlike GORILLA_INVENTORY), so we write one formula per row.
   for (var s = 0; s < skus.length; s++) {
     var skuCell = 'A' + (s + 2);
-    sheet.getRange(s + 2, 9).setFormula(
+    var rowNum  = s + 2;
+
+    // Cols B-H: GORILLA_INVENTORY per category
+    for (var ic = 0; ic < inventoryCategories.length; ic++) {
+      var cat = inventoryCategories[ic];
+      sheet.getRange(rowNum, cat.col).setFormula(
+        '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuCell + ', ' + mktRef + ', "' + cat.category + '"), 0)'
+      );
+    }
+
+    // Col I: Sales Count (last N days)
+    sheet.getRange(rowNum, 9).setFormula(
       '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + skuCell +
       ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
     );
+
+    // Col K: Selling Price
+    sheet.getRange(rowNum, 11).setFormula(
+      '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + skuCell + ', ' + mktRef + '), 0)'
+    );
   }
 
-  // Col J: Daily Velocity (derived: sales / lookback days)
+  // Col J: Daily Velocity (derived: sales / lookback days — no Gorilla API call)
   sheet.getRange(2, 10).setFormula(
     '=ARRAYFORMULA(IFERROR(I2:I' + lastRow + '/' + lookRef + ', 0))'
-  );
-
-  // Col K: Selling Price
-  sheet.getRange(2, 11).setFormula(
-    '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + skuRange + ', ' + mktRef + '), 0)'
   );
 
   // ── Formatting (FBA columns) ──
@@ -213,34 +194,33 @@ function buildGorillaDataTab() {
     );
   }
 
-  // Cols N-Q: FBM data — use range-based formulas where possible to minimize Gorilla API calls
-  var fbmSkuRange = 'M2:M' + lastRow;
-
-  // Col N: FBM Available (fulfillable) — range-based, 1 API call for all SKUs
-  // Returns "" for rows where FBM SKU is blank (Gorilla returns 0 for empty SKUs, so
-  // we wrap in an IF/ARRAYFORMULA to blank out rows with no FBM SKU)
-  sheet.getRange(2, 14).setFormula(
-    '=ARRAYFORMULA(IF(' + fbmSkuRange + '<>"", IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + fbmSkuRange + ', ' + mktRef + ', "fulfillable"), 0), ""))'
-  );
-
-  // Col O: FBM Sales Count (lookback) — per-row (GORILLA_SALESCOUNT doesn't spill)
+  // Cols N-Q: FBM data — per-row formulas (Gorilla add-on functions don't work
+  // inside ARRAYFORMULA). Only compute when FBM SKU is set.
   for (var fbi = 0; fbi < skus.length; fbi++) {
     var fbmSkuCell = 'M' + (fbi + 2);
-    sheet.getRange(fbi + 2, 15).setFormula(
+    var fbmRowNum  = fbi + 2;
+
+    // Col N: FBM Available (fulfillable)
+    sheet.getRange(fbmRowNum, 14).setFormula(
+      '=IF(' + fbmSkuCell + '<>"", IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + ', "fulfillable"), 0), "")'
+    );
+
+    // Col O: FBM Sales Count (lookback)
+    sheet.getRange(fbmRowNum, 15).setFormula(
       '=IF(' + fbmSkuCell + '<>"", IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + fbmSkuCell +
       ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0), "")'
     );
+
+    // Col P: FBM Daily Velocity (derived: sales / lookback days)
+    sheet.getRange(fbmRowNum, 16).setFormula(
+      '=IF(O' + fbmRowNum + '<>"", IFERROR(O' + fbmRowNum + '/' + lookRef + ', 0), "")'
+    );
+
+    // Col Q: FBM Selling Price
+    sheet.getRange(fbmRowNum, 17).setFormula(
+      '=IF(' + fbmSkuCell + '<>"", IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + '), 0), "")'
+    );
   }
-
-  // Col P: FBM Daily Velocity (derived: sales / lookback days — no Gorilla API call)
-  sheet.getRange(2, 16).setFormula(
-    '=ARRAYFORMULA(IF(O2:O' + lastRow + '<>"", IFERROR(O2:O' + lastRow + '/' + lookRef + ', 0), ""))'
-  );
-
-  // Col Q: FBM Selling Price — range-based, 1 API call for all SKUs
-  sheet.getRange(2, 17).setFormula(
-    '=ARRAYFORMULA(IF(' + fbmSkuRange + '<>"", IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + fbmSkuRange + ', ' + mktRef + '), 0), ""))'
-  );
 
   // ── FBM Formatting ──
   if (skus.length > 0) {
