@@ -26,17 +26,21 @@
  * @property {number}   fbaProcessingStart- FBA processing at start of day
  * @property {number}   fbmOnHandStart    - FBM on-hand at start of day
  * @property {number}   dtcStart          - DTC remaining at start of day
- * @property {number}   unitsSold         - Units sold this day
+ * @property {number}   unitsSold         - Total units sold this day (all channels)
+ * @property {number}   soldFromFba       - Units sold from FBA this day
+ * @property {number}   soldFromFbm       - Units sold from FBM this day
+ * @property {number}   soldFromDtc       - Units sold from DTC this day
+ * @property {number}   unfulfilledUnits  - Demand that went unfulfilled (partial OOS)
  * @property {string}   soldFrom          - Channel that fulfilled: FBA|FBM|DTC|OOS
  * @property {number}   conversionRate    - Conversion rate applied this day (%)
- * @property {number}   effectiveVelocity - Velocity used this day (FBA or FBM)
- * @property {number}   effectivePrice    - Selling price used this day (FBA or FBM)
- * @property {number}   fbmCostPerUnit    - FBM fulfillment cost per unit (0 for non-FBM)
+ * @property {number}   effectiveVelocity - Primary demand velocity this day
+ * @property {number}   effectivePrice    - FBA selling price (used for OOS loss calcs)
+ * @property {number}   fbmCostPerUnit    - FBM fulfillment cost per unit (0 if no FBM sales)
  * @property {number}   fbaAvailableEnd   - FBA available at end of day
  * @property {number}   fbaProcessingEnd  - FBA processing at end of day
  * @property {number}   fbmOnHandEnd      - FBM on-hand at end of day
  * @property {number}   dtcEnd            - DTC remaining at end of day
- * @property {string}   channel           - Display channel label
+ * @property {string}   channel           - Display channel label (e.g. 'FBA', 'FBA→FBM')
  * @property {string[]} events            - Event log entries for this day
  */
 
@@ -197,9 +201,15 @@ function runWaterfall(cfg) {
       }
     }
 
-    // ── Step 4: Fulfillment waterfall — sequential if/else ──
-    var unitsSold = 0;
-    var channel   = 'OOS';
+    // ── Step 4: Fulfillment waterfall — cascading ──
+    // Demand cascades through channels: FBA → FBM → DTC → OOS.
+    // On transition days (e.g. FBA can't fill full demand), remaining
+    // demand spills to the next channel rather than being lost.
+
+    var soldFromFba = 0;
+    var soldFromFbm = 0;
+    var soldFromDtc = 0;
+    var channels    = [];
 
     // Check if DTC bridge is active as a manual override for this date
     var dtcActive = cfg.dtcStartDate && cfg.dtcEndDate &&
@@ -211,60 +221,90 @@ function runWaterfall(cfg) {
                     today >= cfg.fbmStartDateOverride &&
                     fbmOnHand > 0;
 
+    // Pre-compute effective velocities for both channels
+    var fbaEffVel = Math.round(fbaVelocity * (cfg.conversionRate / 100) * 100) / 100;
+    var fbmEffVel = Math.round(fbmVelocity * (cfg.conversionRate / 100) * 100) / 100;
+
+    // Phase 1: FBA — sell from FBA if available (unless FBM forced)
     if (fbaAvail > 0 && !fbmForced) {
-      // Priority 1: FBA available (unless FBM is forced by manual override)
-      channel = 'FBA';
-      var fbaEffVel = fbaVelocity * (cfg.conversionRate / 100);
-      fbaEffVel = Math.round(fbaEffVel * 100) / 100;
-      unitsSold = Math.min(fbaEffVel, fbaAvail);
-      fbaAvail = roundInv(fbaAvail - unitsSold);
-    } else if (fbmOnHand > 0) {
-      // Priority 2: FBM on-hand (auto when FBA hits zero, or forced by override)
-      channel = 'FBM';
-      var fbmEffVel = fbmVelocity * (cfg.conversionRate / 100);
-      fbmEffVel = Math.round(fbmEffVel * 100) / 100;
-      unitsSold = Math.min(fbmEffVel, fbmOnHand);
-      fbmOnHand = roundInv(fbmOnHand - unitsSold);
-      if (dayStartFbaAvail > 0 && !fbmForced) {
+      soldFromFba = Math.min(fbaEffVel, fbaAvail);
+      fbaAvail = roundInv(fbaAvail - soldFromFba);
+      channels.push('FBA');
+    }
+
+    // Phase 2: FBM — pick up remaining demand or serve as primary channel
+    var fbmDemand = 0;
+    if (channels.length > 0 && soldFromFba < fbaEffVel) {
+      // FBA tried but couldn't fill all demand — spillover to FBM
+      var fbaRemaining = roundInv(fbaEffVel - soldFromFba);
+      fbmDemand = Math.min(fbaRemaining, fbmEffVel);
+    } else if (channels.length === 0) {
+      // No FBA attempt (FBA=0 or fbmForced) — FBM is primary channel
+      fbmDemand = fbmEffVel;
+    }
+
+    if (fbmDemand > 0 && fbmOnHand > 0) {
+      soldFromFbm = Math.min(fbmDemand, fbmOnHand);
+      fbmOnHand = roundInv(fbmOnHand - soldFromFbm);
+      channels.push('FBM');
+
+      if (soldFromFba > 0) {
+        events.push('FBA stock depleted mid-day — ' + fmtNum(soldFromFba) + ' FBA + ' + fmtNum(soldFromFbm) + ' FBM');
+      } else if (dayStartFbaAvail > 0 && !fbmForced) {
         events.push('FBA stock depleted — switched to FBM');
-      } else if (fbmForced && fbaAvail > 0) {
+      } else if (fbmForced && dayStartFbaAvail > 0) {
         events.push('FBM manual override active — selling from FBM');
       }
-    } else if (dtcActive) {
-      // Priority 3: DTC bridge (manual override within date range)
-      channel = 'DTC';
-      var dtcEffVel = fbaVelocity * (cfg.conversionRate / 100);
-      dtcEffVel = Math.round(dtcEffVel * 100) / 100;
-      unitsSold = Math.min(dtcEffVel, dtcRemaining);
-      dtcRemaining = roundInv(dtcRemaining - unitsSold);
-      events.push('Fulfilling from DTC bridge');
+    }
+
+    // Phase 3: DTC — pick up anything left after FBA + FBM
+    // Primary demand = FBA vel (if FBA was attempted or pure OOS), FBM vel (if FBM was primary)
+    var primaryDemand;
+    if (channels.length > 0 && channels[0] === 'FBM') {
+      primaryDemand = fbmEffVel; // FBM is primary channel (FBA=0 or forced)
     } else {
-      // Priority 4: TRUE OOS
+      primaryDemand = fbaEffVel; // FBA attempted, or pure OOS (use FBA listing demand)
+    }
+    var remainingAfterFbaFbm = roundInv(primaryDemand - soldFromFba - soldFromFbm);
+
+    if (remainingAfterFbaFbm > 0 && dtcActive) {
+      soldFromDtc = Math.min(remainingAfterFbaFbm, dtcRemaining);
+      dtcRemaining = roundInv(dtcRemaining - soldFromDtc);
+      channels.push('DTC');
+      events.push('Fulfilling ' + fmtNum(soldFromDtc) + ' units from DTC bridge');
+    }
+
+    // Compute totals
+    var unitsSold = soldFromFba + soldFromFbm + soldFromDtc;
+    var unfulfilledUnits = roundInv(primaryDemand - unitsSold);
+
+    // Add OOS to channel list if there's unfulfilled demand
+    if (unfulfilledUnits > 0 && channels.length > 0) {
+      channels.push('OOS');
+    }
+
+    // Determine channel label
+    var channel;
+    if (channels.length === 0) {
       channel = 'OOS';
-      unitsSold = 0;
       events.push('TRUE OOS — no inventory available on any channel');
-    }
-
-    // Compute the effective velocity for this day (for reporting)
-    var effectiveVelocity;
-    if (channel === 'FBM') {
-      effectiveVelocity = Math.round(fbmVelocity * (cfg.conversionRate / 100) * 100) / 100;
     } else {
-      effectiveVelocity = Math.round(fbaVelocity * (cfg.conversionRate / 100) * 100) / 100;
+      channel = channels.join('→');
     }
 
-    // Determine effective price for this day
-    // FBA in stock → FBA price; FBA out of stock (selling FBM) → FBM price if set
+    // Effective velocity = primary channel's demand rate (for reporting/OOS calcs)
+    var effectiveVelocity = (channels.length > 0 && channels[0] === 'FBA') ? fbaEffVel : fbmEffVel;
+    // If no channels (pure OOS), use FBA velocity to represent lost demand
+    if (channels.length === 0) effectiveVelocity = fbaEffVel;
+
+    // Effective price = FBA listing price (used for OOS lost revenue calculations)
     var effectivePrice = cfg.sellingPrice;
-    if (channel === 'FBM' && cfg.fbmSellingPrice > 0) {
-      effectivePrice = cfg.fbmSellingPrice;
-    }
 
-    // FBM fulfillment cost (only applies on FBM days)
-    var fbmCostPerUnit = (channel === 'FBM') ? (cfg.fbmFulfillmentCost || 0) : 0;
+    // FBM fulfillment cost (applies when any FBM units were sold)
+    var fbmCostPerUnit = (soldFromFbm > 0) ? (cfg.fbmFulfillmentCost || 0) : 0;
 
     // Check for channel switch back to FBA (if we were on FBM/DTC and FBA became available)
-    if ((dayStartFbaAvail === 0) && (channel === 'FBA')) {
+    if ((dayStartFbaAvail === 0) && soldFromFba > 0 && channels[0] === 'FBA') {
       events.push('FBA stock replenished — switched back to FBA');
     }
 
@@ -287,6 +327,10 @@ function runWaterfall(cfg) {
       fbmOnHandStart:    dayStartFbm,
       dtcStart:          dayStartDtc,
       unitsSold:         unitsSold,
+      soldFromFba:       soldFromFba,
+      soldFromFbm:       soldFromFbm,
+      soldFromDtc:       soldFromDtc,
+      unfulfilledUnits:  unfulfilledUnits,
       soldFrom:          channel,
       conversionRate:    cfg.conversionRate,
       effectiveVelocity: effectiveVelocity,
@@ -367,27 +411,29 @@ function extractMilestones(snapshots, cfg) {
   for (var i = 0; i < snapshots.length; i++) {
     var snap = snapshots[i];
 
-    // Track the last day of the INITIAL FBA stock run (before first switch away)
-    if (!initialFbaEnded && snap.channel === 'FBA') {
+    // Track the last day of the INITIAL FBA stock run (before first day with no FBA sales).
+    // A split day (FBA→FBM) still counts as part of the FBA run since FBA contributed.
+    if (!initialFbaEnded && snap.soldFromFba > 0) {
       milestones.lastFbaDay = snap.date;
-    } else if (!initialFbaEnded && snap.channel !== 'FBA' && milestones.lastFbaDay !== null) {
+    } else if (!initialFbaEnded && snap.soldFromFba === 0 && milestones.lastFbaDay !== null) {
       initialFbaEnded = true; // initial FBA run has ended
     }
 
-    // First day on FBM
-    if (!foundFirstFbm && snap.channel === 'FBM') {
+    // First day on FBM (includes split days where FBM picked up overflow)
+    if (!foundFirstFbm && snap.soldFromFbm > 0) {
       milestones.firstFbmDay = snap.date;
       foundFirstFbm = true;
     }
 
-    // First day back on FBA (after being on FBM/DTC/OOS)
-    if (!foundBackOnFba && initialFbaEnded && snap.channel === 'FBA') {
+    // First day back on FBA (after being off FBA entirely)
+    if (!foundBackOnFba && initialFbaEnded && snap.soldFromFba > 0) {
       milestones.firstBackOnFba = snap.date;
       foundBackOnFba = true;
     }
 
-    // OOS gaps
-    if (snap.channel === 'OOS') {
+    // OOS gaps — pure OOS only (no sales from any channel)
+    var isPureOos = (snap.channel === 'OOS');
+    if (isPureOos) {
       if (!wasOos) {
         oosStart = snap.date;
         wasOos = true;

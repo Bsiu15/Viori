@@ -23,11 +23,19 @@ var DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /**
  * Returns the background color hex for a given fulfillment channel.
+ * For split channels like 'FBA→FBM', uses the last channel's color
+ * (the most notable/terminal state).
  * @param {string} channel
  * @return {string} hex color
  */
 function getChannelColor(channel) {
-  switch (channel) {
+  // For split channels, use the last segment's color
+  var key = channel;
+  if (channel.indexOf('→') > -1) {
+    var parts = channel.split('→');
+    key = parts[parts.length - 1];
+  }
+  switch (key) {
     case 'FBA':  return COLORS.FBA;
     case 'FBM':  return COLORS.FBM;
     case 'DTC':  return COLORS.DTC;
@@ -206,17 +214,27 @@ function buildDetailTab(skuDef, data, cfg) {
             var lines = [];
             lines.push(String(day));
             lines.push(snap.channel);
-            lines.push('Sold: ' + fmtNum(snap.unitsSold));
+
+            // Show sold breakdown for split days, simple total for single-channel
+            if (snap.channel.indexOf('→') > -1 && snap.unitsSold > 0) {
+              var soldParts = [];
+              if (snap.soldFromFba > 0) soldParts.push(fmtNum(snap.soldFromFba) + ' FBA');
+              if (snap.soldFromFbm > 0) soldParts.push(fmtNum(snap.soldFromFbm) + ' FBM');
+              if (snap.soldFromDtc > 0) soldParts.push(fmtNum(snap.soldFromDtc) + ' DTC');
+              lines.push('Sold: ' + fmtNum(snap.unitsSold) + ' (' + soldParts.join('+') + ')');
+            } else {
+              lines.push('Sold: ' + fmtNum(snap.unitsSold));
+            }
 
             // Show ending inventory for active buckets
             var invParts = [];
-            if (snap.fbaAvailableEnd > 0 || snap.channel === 'FBA') {
+            if (snap.fbaAvailableEnd > 0 || snap.soldFromFba > 0) {
               invParts.push('FBA: ' + fmtNum(snap.fbaAvailableEnd));
             }
-            if (snap.fbmOnHandEnd > 0 || snap.channel === 'FBM') {
+            if (snap.fbmOnHandEnd > 0 || snap.soldFromFbm > 0) {
               invParts.push('FBM: ' + fmtNum(snap.fbmOnHandEnd));
             }
-            if (snap.dtcEnd > 0 || snap.channel === 'DTC') {
+            if (snap.dtcEnd > 0 || snap.soldFromDtc > 0) {
               invParts.push('DTC: ' + fmtNum(snap.dtcEnd));
             }
             if (snap.fbaProcessingEnd > 0) {
@@ -233,29 +251,31 @@ function buildDetailTab(skuDef, data, cfg) {
               lines.push(evt);
             }
 
-            // OOS financial impact line
-            if (snap.channel === 'OOS' && hasFinancials) {
-              var dayLostRev = snap.effectiveVelocity * (snap.effectivePrice || sellingPrice);
+            // OOS financial impact line — includes partial OOS (split days with unfulfilled demand)
+            if (snap.unfulfilledUnits > 0 && hasFinancials) {
+              var dayLostRev = snap.unfulfilledUnits * (snap.effectivePrice || sellingPrice);
               var dayLostDpp = dayLostRev * (dppMargin / 100);
               lines.push('Lost: ' + fmtDollar(dayLostRev) + ' rev');
 
               // Accumulate for monthly summary
-              monthFinancials[mo.name].oosDays += 1;
+              monthFinancials[mo.name].oosDays += (snap.channel === 'OOS') ? 1 : 0.5; // partial OOS = 0.5 for display
               monthFinancials[mo.name].lostRevenue += dayLostRev;
               monthFinancials[mo.name].lostDpp += dayLostDpp;
             }
 
-            // FBM cost impact line
-            if (snap.channel === 'FBM' && snap.fbmCostPerUnit > 0) {
-              var dayFbmCost = snap.unitsSold * snap.fbmCostPerUnit;
+            // FBM cost impact line — uses per-channel sold amounts for accuracy
+            if (snap.soldFromFbm > 0 && snap.fbmCostPerUnit > 0) {
+              var dayFbmCost = snap.soldFromFbm * snap.fbmCostPerUnit;
               lines.push('FBM cost: ' + fmtDollar(dayFbmCost));
 
-              monthFinancials[mo.name].fbmDays += 1;
-              monthFinancials[mo.name].fbmRevenue += snap.unitsSold * (snap.effectivePrice || sellingPrice);
+              monthFinancials[mo.name].fbmDays += (snap.channel.indexOf('→') > -1) ? 0.5 : 1;
+              var fbmPrice = (cfg && cfg.fbmSellingPrice > 0) ? cfg.fbmSellingPrice : sellingPrice;
+              monthFinancials[mo.name].fbmRevenue += snap.soldFromFbm * fbmPrice;
               monthFinancials[mo.name].fbmCost += dayFbmCost;
-            } else if (snap.channel === 'FBM') {
-              monthFinancials[mo.name].fbmDays += 1;
-              monthFinancials[mo.name].fbmRevenue += snap.unitsSold * (snap.effectivePrice || sellingPrice);
+            } else if (snap.soldFromFbm > 0) {
+              monthFinancials[mo.name].fbmDays += (snap.channel.indexOf('→') > -1) ? 0.5 : 1;
+              var fbmPrice2 = (cfg && cfg.fbmSellingPrice > 0) ? cfg.fbmSellingPrice : sellingPrice;
+              monthFinancials[mo.name].fbmRevenue += snap.soldFromFbm * fbmPrice2;
             }
 
             cellValues.push(lines.join('\n'));

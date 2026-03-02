@@ -201,6 +201,12 @@ function buildSummaryTab(allResults) {
          .setFontSize(9)
          .setBorder(true, true, true, true, false, false);
   }
+  // Split-day note (after the 6 legend swatches)
+  sheet.getRange(legendRow, 13, 1, 6).merge()
+       .setValue('F→M = split day (FBA ran out, FBM picked up overflow)')
+       .setFontSize(8)
+       .setFontColor('#666666')
+       .setHorizontalAlignment('left');
 
   // ══════════════════════════════════════════════════════════════════════════
   // SECTION 2B: SHIPMENT DATA WARNINGS
@@ -406,7 +412,8 @@ function buildSummaryTab(allResults) {
 
       for (var di = 0; di < snaps.length; di++) {
         var snap = snaps[di];
-        if (snap.channel === 'OOS' && price > 0) {
+        // Count any day with unfulfilled demand (pure OOS or partial OOS from split days)
+        if (snap.unfulfilledUnits > 0 && price > 0) {
           var snapMonth = snap.date.getMonth(); // 0-indexed
           var snapYear  = snap.date.getFullYear();
           var mKey = null;
@@ -418,12 +425,14 @@ function buildSummaryTab(allResults) {
           }
           if (mKey) {
             var dayPrice = (snap.effectivePrice > 0) ? snap.effectivePrice : price;
-            var dayRev = snap.effectiveVelocity * dayPrice;
+            var dayRev = snap.unfulfilledUnits * dayPrice;
             var dayDpp = dayRev * (dpp / 100);
-            skuMonthly[mKey].oosDays += 1;
+            // Pure OOS = full day; partial OOS (split day) = half day for display
+            var dayFraction = (snap.channel === 'OOS') ? 1 : 0.5;
+            skuMonthly[mKey].oosDays += dayFraction;
             skuMonthly[mKey].lostRevenue += dayRev;
             skuMonthly[mKey].lostDpp += dayDpp;
-            skuTotalOos += 1;
+            skuTotalOos += dayFraction;
             skuTotalRev += dayRev;
             skuTotalDpp += dayDpp;
           }
@@ -635,9 +644,10 @@ function buildSummaryTab(allResults) {
       var projDays = 0, projRev = 0, projDppVal2 = 0;
       var ipSnaps = ipResult.snapshots;
       for (var ipd = 0; ipd < ipSnaps.length; ipd++) {
-        if (ipSnaps[ipd].channel === 'OOS' && ipPrice > 0) {
-          projDays += 1;
-          var ipDayRev = ipSnaps[ipd].effectiveVelocity * ipPrice;
+        if (ipSnaps[ipd].unfulfilledUnits > 0 && ipPrice > 0) {
+          var ipDayFrac = (ipSnaps[ipd].channel === 'OOS') ? 1 : 0.5;
+          projDays += ipDayFrac;
+          var ipDayRev = ipSnaps[ipd].unfulfilledUnits * ipPrice;
           projRev += ipDayRev;
           projDppVal2 += ipDayRev * (ipDpp / 100);
         }
@@ -808,12 +818,12 @@ function buildSummaryTab(allResults) {
     // SECTION 3C: FBM FULFILLMENT COST TABLE
     // ════════════════════════════════════════════════════════════════════════
 
-    // Check if any SKU has FBM days
+    // Check if any SKU has FBM sales (including split days)
     var anyFbmDays = false;
     for (var fc2 = 0; fc2 < numSkus; fc2++) {
       var fc2Snaps = allResults[fc2].snapshots;
       for (var fc2d = 0; fc2d < fc2Snaps.length; fc2d++) {
-        if (fc2Snaps[fc2d].channel === 'FBM') {
+        if (fc2Snaps[fc2d].soldFromFbm > 0) {
           anyFbmDays = true;
           break;
         }
@@ -863,12 +873,13 @@ function buildSummaryTab(allResults) {
         var fsiPrice = (fsiCfg && fsiCfg.sellingPrice) ? fsiCfg.sellingPrice : 0;
 
         var skuFbmDays = 0, skuFbmRev = 0, skuFbmCost = 0;
+        var fsiFbmPrice = (fsiCfg && fsiCfg.fbmSellingPrice > 0) ? fsiCfg.fbmSellingPrice : fsiPrice;
         for (var fsd = 0; fsd < fsiSnaps.length; fsd++) {
-          if (fsiSnaps[fsd].channel === 'FBM') {
-            skuFbmDays += 1;
-            var fbmDayPrice = (fsiSnaps[fsd].effectivePrice > 0) ? fsiSnaps[fsd].effectivePrice : fsiPrice;
-            skuFbmRev += fsiSnaps[fsd].unitsSold * fbmDayPrice;
-            skuFbmCost += fsiSnaps[fsd].unitsSold * (fsiSnaps[fsd].fbmCostPerUnit || 0);
+          if (fsiSnaps[fsd].soldFromFbm > 0) {
+            // Split days count as 0.5 FBM day for display; full FBM days count as 1
+            skuFbmDays += (fsiSnaps[fsd].channel.indexOf('→') > -1) ? 0.5 : 1;
+            skuFbmRev += fsiSnaps[fsd].soldFromFbm * fsiFbmPrice;
+            skuFbmCost += fsiSnaps[fsd].soldFromFbm * (fsiSnaps[fsd].fbmCostPerUnit || 0);
           }
         }
 
@@ -1010,6 +1021,17 @@ function buildSummaryTab(allResults) {
       var snap = snapshots[di];
       var label = snap.channel;
 
+      // Abbreviate split labels for 48px calendar cells (FBA→FBM → F→M)
+      if (label.indexOf('→') > -1) {
+        var ABBREV = { 'FBA': 'F', 'FBM': 'M', 'DTC': 'D', 'OOS': 'O' };
+        var parts = label.split('→');
+        var compact = [];
+        for (var ci = 0; ci < parts.length; ci++) {
+          compact.push(ABBREV[parts[ci]] || parts[ci]);
+        }
+        label = compact.join('→');
+      }
+
       // Check if a shipment arrived today — show PROCESSING label
       var isArrival = false;
       for (var ei = 0; ei < snap.events.length; ei++) {
@@ -1019,7 +1041,7 @@ function buildSummaryTab(allResults) {
         }
       }
 
-      if (isArrival && snap.channel !== 'FBA') {
+      if (isArrival && snap.channel.indexOf('FBA') !== 0) {
         // Shipment arrived but not yet FBA available — mark with asterisk
         label = label + '*';
       }
