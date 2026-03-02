@@ -146,10 +146,15 @@ function buildGorillaDataTab() {
 
   // Col I: Sales Count (last N days)
   // MCF param: "Exclude" omits Multi-Channel Fulfillment orders (FBA only)
-  sheet.getRange(2, 9).setFormula(
-    '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + skuRange +
-    ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
-  );
+  // NOTE: GORILLA_SALESCOUNT does not spill results when given a SKU range
+  // (unlike GORILLA_INVENTORY), so we write one formula per row.
+  for (var s = 0; s < skus.length; s++) {
+    var skuCell = 'A' + (s + 2);
+    sheet.getRange(s + 2, 9).setFormula(
+      '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + skuCell +
+      ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
+    );
+  }
 
   // Col J: Daily Velocity (derived: sales / lookback days)
   sheet.getRange(2, 10).setFormula(
