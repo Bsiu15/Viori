@@ -456,7 +456,7 @@ function buildSummaryTab(allResults) {
       // Net Impact
       sheet.getRange(finRow, dCol, 1, finColSpans[5]).merge()
            .setValue(skuNetImpact)
-           .setNumberFormat('-$#,##0;$#,##0;$0')
+           .setNumberFormat('$#,##0;-$#,##0;$0')
            .setFontWeight('bold')
            .setFontSize(9).setHorizontalAlignment('right')
            .setBorder(true, true, true, true, false, false)
@@ -517,7 +517,7 @@ function buildSummaryTab(allResults) {
 
     sheet.getRange(finRow, tCol, 1, finColSpans[5]).merge()
          .setValue(grandNet)
-         .setNumberFormat('-$#,##0;$#,##0;$0')
+         .setNumberFormat('$#,##0;-$#,##0;$0')
          .setFontWeight('bold').setFontSize(9).setHorizontalAlignment('right')
          .setBorder(true, true, true, true, false, false)
          .setBackground(grandNet < 0 ? '#D6E4F0' : '#C6EFCE');

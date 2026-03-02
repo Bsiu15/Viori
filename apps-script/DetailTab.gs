@@ -98,8 +98,8 @@ function buildDetailTab(skuDef, data, cfg) {
 
   // Financial fields
   var sellingPrice = (cfg && cfg.sellingPrice) ? cfg.sellingPrice : 0;
-  var dppMargin    = (cfg && cfg.dppMargin) ? cfg.dppMargin : 0;
   var hasFinancials = sellingPrice > 0;
+  var fbmPrice = (cfg && cfg.fbmSellingPrice > 0) ? cfg.fbmSellingPrice : sellingPrice;
 
   // Build snapshot lookup
   var snapMap = buildSnapshotMap(data);
@@ -150,11 +150,11 @@ function buildDetailTab(skuDef, data, cfg) {
   }
 
   // Track OOS and FBM financial data per month for the summary table
-  // monthKey -> { oosDays, lostRevenue, lostDpp, fbmDays, fbmRevenue, fbmCost }
+  // monthKey -> { oosDays, lostRevenue, fbmDays, fbmRevenue, fbmCost }
   var monthFinancials = {};
   for (var mi2 = 0; mi2 < months.length; mi2++) {
     monthFinancials[months[mi2].name] = {
-      oosDays: 0, lostRevenue: 0, lostDpp: 0,
+      oosDays: 0, lostRevenue: 0,
       fbmDays: 0, fbmRevenue: 0, fbmCost: 0
     };
   }
@@ -254,28 +254,22 @@ function buildDetailTab(skuDef, data, cfg) {
             // OOS financial impact line — includes partial OOS (split days with unfulfilled demand)
             if (snap.unfulfilledUnits > 0 && hasFinancials) {
               var dayLostRev = snap.unfulfilledUnits * (snap.effectivePrice || sellingPrice);
-              var dayLostDpp = dayLostRev * (dppMargin / 100);
               lines.push('Lost: ' + fmtDollar(dayLostRev) + ' rev');
 
               // Accumulate for monthly summary
               monthFinancials[mo.name].oosDays += 1; // any unfulfilled demand = 1 whole OOS day
               monthFinancials[mo.name].lostRevenue += dayLostRev;
-              monthFinancials[mo.name].lostDpp += dayLostDpp;
             }
 
             // FBM cost impact line — uses per-channel sold amounts for accuracy
-            if (snap.soldFromFbm > 0 && snap.fbmCostPerUnit > 0) {
-              var dayFbmCost = snap.soldFromFbm * snap.fbmCostPerUnit;
-              lines.push('FBM cost: ' + fmtDollar(dayFbmCost));
-
+            if (snap.soldFromFbm > 0) {
               monthFinancials[mo.name].fbmDays += 1;
-              var fbmPrice = (cfg && cfg.fbmSellingPrice > 0) ? cfg.fbmSellingPrice : sellingPrice;
               monthFinancials[mo.name].fbmRevenue += snap.soldFromFbm * fbmPrice;
-              monthFinancials[mo.name].fbmCost += dayFbmCost;
-            } else if (snap.soldFromFbm > 0) {
-              monthFinancials[mo.name].fbmDays += 1;
-              var fbmPrice2 = (cfg && cfg.fbmSellingPrice > 0) ? cfg.fbmSellingPrice : sellingPrice;
-              monthFinancials[mo.name].fbmRevenue += snap.soldFromFbm * fbmPrice2;
+              if (snap.fbmCostPerUnit > 0) {
+                var dayFbmCost = snap.soldFromFbm * snap.fbmCostPerUnit;
+                lines.push('FBM cost: ' + fmtDollar(dayFbmCost));
+                monthFinancials[mo.name].fbmCost += dayFbmCost;
+              }
             }
 
             cellValues.push(lines.join('\n'));
@@ -359,7 +353,6 @@ function buildDetailTab(skuDef, data, cfg) {
     // Monthly rows
     var totalOosDays = 0, totalLostRev = 0;
     var totalFbmDays = 0, totalFbmSaved = 0, totalFbmCost = 0;
-    var fbmPrice = (cfg && cfg.fbmSellingPrice > 0) ? cfg.fbmSellingPrice : sellingPrice;
 
     for (var fm = 0; fm < months.length; fm++) {
       var mName = months[fm].name;
@@ -404,7 +397,7 @@ function buildDetailTab(skuDef, data, cfg) {
       if (mf.fbmCost > 0) fbmCostCell.setBackground('#FFF2CC');
 
       sheet.getRange(row, 7).setValue(mNetImpact)
-           .setNumberFormat('-$#,##0;$#,##0;$0')
+           .setNumberFormat('$#,##0;-$#,##0;$0')
            .setFontSize(10).setHorizontalAlignment('right')
            .setBorder(true, true, true, true, false, false)
            .setBackground(mNetImpact < 0 ? '#D6E4F0' : null);
@@ -439,7 +432,7 @@ function buildDetailTab(skuDef, data, cfg) {
            .setBackground('#FFF2CC');
     }
     sheet.getRange(row, 7).setValue(pastNet)
-         .setNumberFormat('-$#,##0;$#,##0;$0')
+         .setNumberFormat('$#,##0;-$#,##0;$0')
          .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
          .setBorder(true, true, true, true, false, false)
          .setBackground('#FFF2CC');
@@ -486,7 +479,7 @@ function buildDetailTab(skuDef, data, cfg) {
     else projFbmCostC.setBackground('#F2F2F2');
 
     sheet.getRange(row, 7).setValue(projNet)
-         .setNumberFormat('-$#,##0;$#,##0;$0')
+         .setNumberFormat('$#,##0;-$#,##0;$0')
          .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
          .setBorder(true, true, true, true, false, false)
          .setBackground(projNet < 0 ? '#D6E4F0' : '#F2F2F2');
@@ -534,7 +527,7 @@ function buildDetailTab(skuDef, data, cfg) {
     else totalFbmCostC.setBackground('#D6E4F0');
 
     sheet.getRange(row, 7).setValue(grandNet)
-         .setNumberFormat('-$#,##0;$#,##0;$0')
+         .setNumberFormat('$#,##0;-$#,##0;$0')
          .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
          .setBorder(true, true, true, true, false, false)
          .setBackground(grandNet < 0 ? COLORS.OOS : '#D6E4F0');
