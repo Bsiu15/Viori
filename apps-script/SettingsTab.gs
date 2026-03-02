@@ -52,6 +52,21 @@ var SKU_INPUT_ROWS = [
   // ── Forecast config ──
   { key: 'FBA_CHECKIN_DELAY',     label: 'FBA check-in and processing delay (days)',      defaultVal: 7,    format: 'number'  },
   { key: 'FBM_ONHAND',            label: 'FBM on-hand',                                   defaultVal: 0,    format: 'number'  },
+  // ── FBM Configuration ──
+  { key: 'FBM_SKU_ID',            label: 'FBM SKU ID',                                    defaultVal: '',   format: 'text'    },
+  { key: 'FBM_DAILY_VELOCITY',    label: 'FBM daily sales velocity (units/day)',           defaultVal: '',   format: 'number'  },
+  { key: 'FBM_VEL_OVERRIDE_1_START', label: 'FBM velocity override 1: start date',        defaultVal: '',   format: 'date'    },
+  { key: 'FBM_VEL_OVERRIDE_1_END',   label: 'FBM velocity override 1: end date',          defaultVal: '',   format: 'date'    },
+  { key: 'FBM_VEL_OVERRIDE_1_VALUE', label: 'FBM velocity override 1: units/day',         defaultVal: '',   format: 'number',  fbmVelOverrideNum: 1 },
+  { key: 'FBM_VEL_OVERRIDE_2_START', label: 'FBM velocity override 2: start date',        defaultVal: '',   format: 'date'    },
+  { key: 'FBM_VEL_OVERRIDE_2_END',   label: 'FBM velocity override 2: end date',          defaultVal: '',   format: 'date'    },
+  { key: 'FBM_VEL_OVERRIDE_2_VALUE', label: 'FBM velocity override 2: units/day',         defaultVal: '',   format: 'number',  fbmVelOverrideNum: 2 },
+  { key: 'FBM_VEL_OVERRIDE_3_START', label: 'FBM velocity override 3: start date',        defaultVal: '',   format: 'date'    },
+  { key: 'FBM_VEL_OVERRIDE_3_END',   label: 'FBM velocity override 3: end date',          defaultVal: '',   format: 'date'    },
+  { key: 'FBM_VEL_OVERRIDE_3_VALUE', label: 'FBM velocity override 3: units/day',         defaultVal: '',   format: 'number',  fbmVelOverrideNum: 3 },
+  { key: 'FBM_SELLING_PRICE',     label: 'FBM selling price ($)',                          defaultVal: '',   format: 'currency' },
+  { key: 'FBM_FULFILLMENT_COST',  label: 'FBM fulfillment cost per unit ($)',              defaultVal: '',   format: 'currency' },
+  { key: 'FBM_START_DATE_OVERRIDE', label: 'FBM start date override (manual)',             defaultVal: '',   format: 'date'    },
   // ── Sales Velocity ──
   { key: 'DAILY_VELOCITY',        label: 'Daily sales velocity (units/day)',              defaultVal: 0,    format: 'number'  },
   { key: 'VEL_OVERRIDE_1_START',  label: 'Velocity override 1: start date',              defaultVal: '',   format: 'date'    },
@@ -95,7 +110,7 @@ function namedRangePrefix(skuId) {
 }
 
 /**
- * Builds a Gorilla auto-calc formula for a velocity override VALUE field.
+ * Builds a Gorilla auto-calc formula for an FBA velocity override VALUE field.
  * The formula pulls GORILLA_SALESCOUNT for the same date range shifted back
  * one year and divides by the number of days to produce a daily velocity.
  *
@@ -117,6 +132,32 @@ function buildVelAutoCalcFormula(prefix, skuId, overrideNum) {
   return '=IF(AND(' + startRef + '<>"", ' + endRef + '<>""), ' +
     'IFERROR(' +
       'GORILLA_SALESCOUNT(GLOBAL__GORILLA_SELLER_ID, "Custom", GLOBAL__GORILLA_MARKETPLACE, "' + skuId + '", ' +
+        '"Shipped", "Exclude", ' +
+        'TEXT(' + startRef + ' - 365, "yyyy-mm-dd"), ' +
+        'TEXT(' + endRef + ' - 365, "yyyy-mm-dd")) ' +
+      '/ (' + endRef + ' - ' + startRef + ' + 1)' +
+    ', ""), "")';
+}
+
+/**
+ * Builds a Gorilla auto-calc formula for an FBM velocity override VALUE field.
+ * Like buildVelAutoCalcFormula but uses the FBM SKU ID from the Settings tab
+ * named range instead of a hardcoded SKU string.
+ *
+ * Returns "" when the override START/END dates or FBM SKU ID are empty.
+ *
+ * @param {string} prefix      Named-range prefix, e.g. "SB_HW_100W_FBA"
+ * @param {number} overrideNum 1, 2, or 3
+ * @return {string} A Google Sheets formula string
+ */
+function buildFbmVelAutoCalcFormula(prefix, overrideNum) {
+  var startRef = prefix + '__FBM_VEL_OVERRIDE_' + overrideNum + '_START';
+  var endRef   = prefix + '__FBM_VEL_OVERRIDE_' + overrideNum + '_END';
+  var skuRef   = prefix + '__FBM_SKU_ID';
+
+  return '=IF(AND(' + startRef + '<>"", ' + endRef + '<>"", ' + skuRef + '<>""), ' +
+    'IFERROR(' +
+      'GORILLA_SALESCOUNT(GLOBAL__GORILLA_SELLER_ID, "Custom", GLOBAL__GORILLA_MARKETPLACE, ' + skuRef + ', ' +
         '"Shipped", "Exclude", ' +
         'TEXT(' + startRef + ' - 365, "yyyy-mm-dd"), ' +
         'TEXT(' + endRef + ' - 365, "yyyy-mm-dd")) ' +
@@ -374,9 +415,19 @@ function buildSettingsTab() {
         var gorillaRow = i + 2; // SKU index 0 → Gorilla Data row 2
         valueCell.setFormula("=IFERROR('" + GORILLA_DATA_TAB_NAME + "'!" + gorillaCol + gorillaRow + ", 0)");
         isGorillaLinked = true;
+      } else if (savedGorillaSellerId && GORILLA_FBM_LINK_MAP.hasOwnProperty(input.key)) {
+        // Auto-link FBM fields to Gorilla Data tab (FBM columns)
+        var gorillaFbmCol = GORILLA_FBM_LINK_MAP[input.key];
+        var gorillaFbmRow = i + 2;
+        valueCell.setFormula("=IFERROR('" + GORILLA_DATA_TAB_NAME + "'!" + gorillaFbmCol + gorillaFbmRow + ", 0)");
+        isGorillaLinked = true;
       } else if (savedGorillaSellerId && input.velOverrideNum) {
-        // Auto-calculate velocity from last year's sales for the override date range
+        // Auto-calculate FBA velocity from last year's sales for the override date range
         valueCell.setFormula(buildVelAutoCalcFormula(prefix, sku.id, input.velOverrideNum));
+        isGorillaLinked = true;
+      } else if (savedGorillaSellerId && input.fbmVelOverrideNum) {
+        // Auto-calculate FBM velocity from last year's sales using FBM SKU ID
+        valueCell.setFormula(buildFbmVelAutoCalcFormula(prefix, input.fbmVelOverrideNum));
         isGorillaLinked = true;
       } else if (input.defaultVal !== '' && input.defaultVal !== null) {
         valueCell.setValue(input.defaultVal);
@@ -391,6 +442,14 @@ function buildSettingsTab() {
             'Pulls last year\'s shipped sales for the same date range\n' +
             'and divides by the number of days to get daily velocity.\n\n' +
             'Just enter the start and end dates — this value fills in automatically.\n' +
+            'Type a number to manually override.'
+          );
+        } else if (input.fbmVelOverrideNum) {
+          valueCell.setNote(
+            'Auto-calculated from Gorilla ROI historical data using your FBM SKU ID.\n' +
+            'Pulls last year\'s shipped sales for the same date range\n' +
+            'and divides by the number of days to get daily FBM velocity.\n\n' +
+            'Enter FBM SKU ID and override dates — this value fills in automatically.\n' +
             'Type a number to manually override.'
           );
         } else {
@@ -415,6 +474,8 @@ function buildSettingsTab() {
         valueCell.setNumberFormat('0.0"%"');
       } else if (input.format === 'currency') {
         valueCell.setNumberFormat('$#,##0.00');
+      } else if (input.format === 'text') {
+        valueCell.setNumberFormat('@');
       } else {
         valueCell.setNumberFormat('#,##0');
       }

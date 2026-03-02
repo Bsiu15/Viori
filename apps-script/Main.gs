@@ -172,6 +172,12 @@ function getSkuSettingsForDialog(skuId) {
     'UNFULFILLABLE_CUSTOMER_DAMAGED', 'UNFULFILLABLE_CARRIER_DAMAGED', 'UNFULFILLABLE_DISTRIBUTOR_DAMAGED',
     'RESERVED_TOTAL', 'UNSELLABLE_TOTAL',
     'FBA_CHECKIN_DELAY', 'FBM_ONHAND',
+    'FBM_SKU_ID',
+    'FBM_DAILY_VELOCITY',
+    'FBM_VEL_OVERRIDE_1_START', 'FBM_VEL_OVERRIDE_1_END', 'FBM_VEL_OVERRIDE_1_VALUE',
+    'FBM_VEL_OVERRIDE_2_START', 'FBM_VEL_OVERRIDE_2_END', 'FBM_VEL_OVERRIDE_2_VALUE',
+    'FBM_VEL_OVERRIDE_3_START', 'FBM_VEL_OVERRIDE_3_END', 'FBM_VEL_OVERRIDE_3_VALUE',
+    'FBM_SELLING_PRICE', 'FBM_FULFILLMENT_COST', 'FBM_START_DATE_OVERRIDE',
     'DAILY_VELOCITY',
     'VEL_OVERRIDE_1_START', 'VEL_OVERRIDE_1_END', 'VEL_OVERRIDE_1_VALUE',
     'VEL_OVERRIDE_2_START', 'VEL_OVERRIDE_2_END', 'VEL_OVERRIDE_2_VALUE',
@@ -250,10 +256,16 @@ function saveSkuSettingsFromDialog(skuId, values) {
     'VEL_OVERRIDE_1_START', 'VEL_OVERRIDE_1_END',
     'VEL_OVERRIDE_2_START', 'VEL_OVERRIDE_2_END',
     'VEL_OVERRIDE_3_START', 'VEL_OVERRIDE_3_END',
+    'FBM_VEL_OVERRIDE_1_START', 'FBM_VEL_OVERRIDE_1_END',
+    'FBM_VEL_OVERRIDE_2_START', 'FBM_VEL_OVERRIDE_2_END',
+    'FBM_VEL_OVERRIDE_3_START', 'FBM_VEL_OVERRIDE_3_END',
+    'FBM_START_DATE_OVERRIDE',
     'SPD_SEND_DATE', 'LTL_SEND_DATE',
     'DTC_START_DATE', 'DTC_END_DATE',
     'ADHOC_SEND_DATE'
   ];
+
+  var textFields = ['FBM_SKU_ID'];
 
   for (var key in values) {
     var rangeName = p + '__' + key;
@@ -289,7 +301,10 @@ function saveSkuSettingsFromDialog(skuId, values) {
       continue;
     }
 
-    if (dateFields.indexOf(key) > -1) {
+    if (textFields.indexOf(key) > -1) {
+      // Text field: write as-is
+      range.setValue(val || '');
+    } else if (dateFields.indexOf(key) > -1) {
       // Date field: convert "yyyy-mm-dd" string to Date, or clear
       if (val && val !== '') {
         var parts = val.split('-');
@@ -328,6 +343,7 @@ function waitForGorillaFormulas(skuId) {
   // Find velocity override VALUE cells that have Gorilla formulas
   // AND whose start/end dates are now filled in (meaning they should compute)
   var cellsToWatch = [];
+  // FBA velocity overrides
   for (var v = 1; v <= 3; v++) {
     var valRange = ss.getRangeByName(p + '__VEL_OVERRIDE_' + v + '_VALUE');
     if (!valRange) continue;
@@ -341,6 +357,22 @@ function waitForGorillaFormulas(skuId) {
     var ev = endRange.getValue();
     if (sv && sv !== '' && ev && ev !== '') {
       cellsToWatch.push(valRange);
+    }
+  }
+  // FBM velocity overrides
+  for (var fv = 1; fv <= 3; fv++) {
+    var fbmValRange = ss.getRangeByName(p + '__FBM_VEL_OVERRIDE_' + fv + '_VALUE');
+    if (!fbmValRange) continue;
+    var fbmFormula = fbmValRange.getFormula();
+    if (!fbmFormula || fbmFormula.indexOf('GORILLA_') === -1) continue;
+
+    var fbmStartRange = ss.getRangeByName(p + '__FBM_VEL_OVERRIDE_' + fv + '_START');
+    var fbmEndRange   = ss.getRangeByName(p + '__FBM_VEL_OVERRIDE_' + fv + '_END');
+    if (!fbmStartRange || !fbmEndRange) continue;
+    var fsv = fbmStartRange.getValue();
+    var fev = fbmEndRange.getValue();
+    if (fsv && fsv !== '' && fev && fev !== '') {
+      cellsToWatch.push(fbmValRange);
     }
   }
 

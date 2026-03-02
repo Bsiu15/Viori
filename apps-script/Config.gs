@@ -173,8 +173,23 @@ var GORILLA_DATA_TAB_NAME  = 'Gorilla Data';
  * 15  Unfulfillable: Distributor damaged
  * 16  FBA check-in and processing delay (days)
  * 17  FBM on-hand
+ *  ── FBM Configuration ──
+ * 18  FBM SKU ID
+ * 19  FBM daily sales velocity (units/day)
+ * 20  FBM velocity override 1: start date
+ * 21  FBM velocity override 1: end date
+ * 22  FBM velocity override 1: units/day
+ * 23  FBM velocity override 2: start date
+ * 24  FBM velocity override 2: end date
+ * 25  FBM velocity override 2: units/day
+ * 26  FBM velocity override 3: start date
+ * 27  FBM velocity override 3: end date
+ * 28  FBM velocity override 3: units/day
+ * 29  FBM selling price ($)
+ * 30  FBM fulfillment cost per unit ($)
+ * 31  FBM start date override (manual)
  *  ── Sales Velocity ──
- * 18  Daily sales velocity (units/day)
+ * 32  Daily sales velocity (units/day)
  * 19  Velocity override 1: start date
  * 20  Velocity override 1: end date
  * 21  Velocity override 1: units/day
@@ -212,10 +227,10 @@ var GORILLA_DATA_TAB_NAME  = 'Gorilla Data';
  * 50  Selling price ($)
  * 51  DPP margin (%)
  * 52  Past OOS days (already experienced)
- * 53  Inbound: Shipped est. days to receive
- * 54  (blank spacer row)
+ * 67  Inbound: Shipped est. days to receive
+ * 68  (blank spacer row)
  */
-var ROWS_PER_SKU_BLOCK = 54;
+var ROWS_PER_SKU_BLOCK = 70;
 
 /** Column A = labels, Column B = values in the Settings tab */
 var SETTINGS_LABEL_COL = 1;

@@ -29,6 +29,9 @@
  * @property {number}   unitsSold         - Units sold this day
  * @property {string}   soldFrom          - Channel that fulfilled: FBA|FBM|DTC|OOS
  * @property {number}   conversionRate    - Conversion rate applied this day (%)
+ * @property {number}   effectiveVelocity - Velocity used this day (FBA or FBM)
+ * @property {number}   effectivePrice    - Selling price used this day (FBA or FBM)
+ * @property {number}   fbmCostPerUnit    - FBM fulfillment cost per unit (0 for non-FBM)
  * @property {number}   fbaAvailableEnd   - FBA available at end of day
  * @property {number}   fbaProcessingEnd  - FBA processing at end of day
  * @property {number}   fbmOnHandEnd      - FBM on-hand at end of day
@@ -171,21 +174,28 @@ function runWaterfall(cfg) {
       }
     }
 
-    // ── Step 3: Determine today's velocity and conversion rate ──
-    // Check all velocity overrides (first matching override wins)
-    var velocity = cfg.dailyVelocity;
+    // ── Step 3: Determine today's FBA velocity ──
+    // Check all FBA velocity overrides (first matching override wins)
+    var fbaVelocity = cfg.dailyVelocity;
     for (var vo = 0; vo < cfg.velOverrides.length; vo++) {
       var velOv = cfg.velOverrides[vo];
       if (dateInRange(today, velOv.start, velOv.end)) {
-        velocity = velOv.value;
+        fbaVelocity = velOv.value;
         break;
       }
     }
 
-    // Apply conversion rate to velocity
-    var effectiveVelocity = velocity * (cfg.conversionRate / 100);
-    // Round to avoid floating point drift — use banker's rounding to nearest 0.01
-    effectiveVelocity = Math.round(effectiveVelocity * 100) / 100;
+    // Determine FBM velocity (used when selling from FBM channel)
+    var fbmVelocity = cfg.fbmDailyVelocity || fbaVelocity; // fallback to FBA velocity
+    if (cfg.fbmVelOverrides) {
+      for (var fvo = 0; fvo < cfg.fbmVelOverrides.length; fvo++) {
+        var fbmVelOv = cfg.fbmVelOverrides[fvo];
+        if (dateInRange(today, fbmVelOv.start, fbmVelOv.end)) {
+          fbmVelocity = fbmVelOv.value;
+          break;
+        }
+      }
+    }
 
     // ── Step 4: Fulfillment waterfall — sequential if/else ──
     var unitsSold = 0;
@@ -196,23 +206,36 @@ function runWaterfall(cfg) {
                     dateInRange(today, cfg.dtcStartDate, cfg.dtcEndDate) &&
                     dtcRemaining > 0;
 
-    if (fbaAvail > 0) {
-      // Priority 1: FBA available
+    // Check if FBM start date override forces FBM mode today
+    var fbmForced = cfg.fbmStartDateOverride &&
+                    today >= cfg.fbmStartDateOverride &&
+                    fbmOnHand > 0;
+
+    if (fbaAvail > 0 && !fbmForced) {
+      // Priority 1: FBA available (unless FBM is forced by manual override)
       channel = 'FBA';
-      unitsSold = Math.min(effectiveVelocity, fbaAvail);
+      var fbaEffVel = fbaVelocity * (cfg.conversionRate / 100);
+      fbaEffVel = Math.round(fbaEffVel * 100) / 100;
+      unitsSold = Math.min(fbaEffVel, fbaAvail);
       fbaAvail = roundInv(fbaAvail - unitsSold);
     } else if (fbmOnHand > 0) {
-      // Priority 2: FBM on-hand (activates the moment FBA hits zero)
+      // Priority 2: FBM on-hand (auto when FBA hits zero, or forced by override)
       channel = 'FBM';
-      unitsSold = Math.min(effectiveVelocity, fbmOnHand);
+      var fbmEffVel = fbmVelocity * (cfg.conversionRate / 100);
+      fbmEffVel = Math.round(fbmEffVel * 100) / 100;
+      unitsSold = Math.min(fbmEffVel, fbmOnHand);
       fbmOnHand = roundInv(fbmOnHand - unitsSold);
-      if (dayStartFbaAvail > 0) {
+      if (dayStartFbaAvail > 0 && !fbmForced) {
         events.push('FBA stock depleted — switched to FBM');
+      } else if (fbmForced && fbaAvail > 0) {
+        events.push('FBM manual override active — selling from FBM');
       }
     } else if (dtcActive) {
       // Priority 3: DTC bridge (manual override within date range)
       channel = 'DTC';
-      unitsSold = Math.min(effectiveVelocity, dtcRemaining);
+      var dtcEffVel = fbaVelocity * (cfg.conversionRate / 100);
+      dtcEffVel = Math.round(dtcEffVel * 100) / 100;
+      unitsSold = Math.min(dtcEffVel, dtcRemaining);
       dtcRemaining = roundInv(dtcRemaining - unitsSold);
       events.push('Fulfilling from DTC bridge');
     } else {
@@ -221,6 +244,24 @@ function runWaterfall(cfg) {
       unitsSold = 0;
       events.push('TRUE OOS — no inventory available on any channel');
     }
+
+    // Compute the effective velocity for this day (for reporting)
+    var effectiveVelocity;
+    if (channel === 'FBM') {
+      effectiveVelocity = Math.round(fbmVelocity * (cfg.conversionRate / 100) * 100) / 100;
+    } else {
+      effectiveVelocity = Math.round(fbaVelocity * (cfg.conversionRate / 100) * 100) / 100;
+    }
+
+    // Determine effective price for this day
+    // FBA in stock → FBA price; FBA out of stock (selling FBM) → FBM price if set
+    var effectivePrice = cfg.sellingPrice;
+    if (channel === 'FBM' && cfg.fbmSellingPrice > 0) {
+      effectivePrice = cfg.fbmSellingPrice;
+    }
+
+    // FBM fulfillment cost (only applies on FBM days)
+    var fbmCostPerUnit = (channel === 'FBM') ? (cfg.fbmFulfillmentCost || 0) : 0;
 
     // Check for channel switch back to FBA (if we were on FBM/DTC and FBA became available)
     if ((dayStartFbaAvail === 0) && (channel === 'FBA')) {
@@ -249,6 +290,8 @@ function runWaterfall(cfg) {
       soldFrom:          channel,
       conversionRate:    cfg.conversionRate,
       effectiveVelocity: effectiveVelocity,
+      effectivePrice:    effectivePrice,
+      fbmCostPerUnit:    fbmCostPerUnit,
       fbaAvailableEnd:   fbaAvail,
       fbaProcessingEnd:  fbaProc,
       fbmOnHandEnd:      fbmOnHand,

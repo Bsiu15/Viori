@@ -417,7 +417,8 @@ function buildSummaryTab(allResults) {
             }
           }
           if (mKey) {
-            var dayRev = snap.effectiveVelocity * price;
+            var dayPrice = (snap.effectivePrice > 0) ? snap.effectivePrice : price;
+            var dayRev = snap.effectiveVelocity * dayPrice;
             var dayDpp = dayRev * (dpp / 100);
             skuMonthly[mKey].oosDays += 1;
             skuMonthly[mKey].lostRevenue += dayRev;
@@ -802,6 +803,159 @@ function buildSummaryTab(allResults) {
     if (gTotalDpp > 0) gTotDppR.setBackground(COLORS.OOS); else gTotDppR.setBackground('#D6E4F0');
 
     finEndRow = impRow;
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SECTION 3C: FBM FULFILLMENT COST TABLE
+    // ════════════════════════════════════════════════════════════════════════
+
+    // Check if any SKU has FBM days
+    var anyFbmDays = false;
+    for (var fc2 = 0; fc2 < numSkus; fc2++) {
+      var fc2Snaps = allResults[fc2].snapshots;
+      for (var fc2d = 0; fc2d < fc2Snaps.length; fc2d++) {
+        if (fc2Snaps[fc2d].channel === 'FBM') {
+          anyFbmDays = true;
+          break;
+        }
+      }
+      if (anyFbmDays) break;
+    }
+
+    if (anyFbmDays) {
+      var fbmRow = impRow + 2;
+
+      // FBM table: SKU(5) + FBM Days(2) + FBM Revenue(2) + FBM Cost(2) + FBM Net(2) = 13
+      var fbmTotalCols = 5 + 4 * 2;
+      sheet.getRange(fbmRow, 1, 1, fbmTotalCols).merge()
+           .setValue('FBM Fulfillment Cost Summary')
+           .setFontSize(12)
+           .setFontWeight('bold')
+           .setBackground(COLORS.HEADER)
+           .setFontColor(COLORS.HEADER_FG);
+      fbmRow += 1;
+
+      // Headers
+      var fbmHeaders2 = ['SKU', 'FBM Days', 'FBM Revenue', 'FBM Cost', 'FBM Net'];
+      var fbmColSpans2 = [5, 2, 2, 2, 2];
+
+      var fbmHCol = 1;
+      for (var fbh2 = 0; fbh2 < fbmHeaders2.length; fbh2++) {
+        var fbhSpan = fbmColSpans2[fbh2];
+        sheet.getRange(fbmRow, fbmHCol, 1, fbhSpan).merge()
+             .setValue(fbmHeaders2[fbh2])
+             .setFontWeight('bold')
+             .setFontSize(8)
+             .setBackground('#FFF2CC')
+             .setBorder(true, true, true, true, false, false)
+             .setHorizontalAlignment('center')
+             .setWrap(true);
+        fbmHCol += fbhSpan;
+      }
+      fbmRow += 1;
+
+      // Grand totals
+      var gFbmDays = 0, gFbmRev = 0, gFbmCost = 0;
+
+      // Data rows
+      for (var fsi = 0; fsi < numSkus; fsi++) {
+        var fsiSnaps = allResults[fsi].snapshots;
+        var fsiCfg = allResults[fsi].cfg;
+        var fsiPrice = (fsiCfg && fsiCfg.sellingPrice) ? fsiCfg.sellingPrice : 0;
+
+        var skuFbmDays = 0, skuFbmRev = 0, skuFbmCost = 0;
+        for (var fsd = 0; fsd < fsiSnaps.length; fsd++) {
+          if (fsiSnaps[fsd].channel === 'FBM') {
+            skuFbmDays += 1;
+            var fbmDayPrice = (fsiSnaps[fsd].effectivePrice > 0) ? fsiSnaps[fsd].effectivePrice : fsiPrice;
+            skuFbmRev += fsiSnaps[fsd].unitsSold * fbmDayPrice;
+            skuFbmCost += fsiSnaps[fsd].unitsSold * (fsiSnaps[fsd].fbmCostPerUnit || 0);
+          }
+        }
+
+        var fbmDCol = 1;
+        sheet.getRange(fbmRow, fbmDCol, 1, 5).merge()
+             .setValue(allResults[fsi].skuDef.id)
+             .setFontSize(8).setHorizontalAlignment('left')
+             .setBorder(true, true, true, true, false, false);
+        fbmDCol += 5;
+
+        sheet.getRange(fbmRow, fbmDCol, 1, 2).merge()
+             .setValue(skuFbmDays)
+             .setFontSize(8).setHorizontalAlignment('center')
+             .setBorder(true, true, true, true, false, false);
+        fbmDCol += 2;
+
+        sheet.getRange(fbmRow, fbmDCol, 1, 2).merge()
+             .setValue(skuFbmRev)
+             .setNumberFormat('$#,##0')
+             .setFontSize(8).setHorizontalAlignment('right')
+             .setBorder(true, true, true, true, false, false);
+        fbmDCol += 2;
+
+        var fbmCostR = sheet.getRange(fbmRow, fbmDCol, 1, 2).merge()
+             .setValue(skuFbmCost)
+             .setNumberFormat('$#,##0')
+             .setFontSize(8).setHorizontalAlignment('right')
+             .setBorder(true, true, true, true, false, false);
+        if (skuFbmCost > 0) fbmCostR.setBackground(COLORS.FBM);
+        fbmDCol += 2;
+
+        var skuFbmNet = skuFbmRev - skuFbmCost;
+        sheet.getRange(fbmRow, fbmDCol, 1, 2).merge()
+             .setValue(skuFbmNet)
+             .setNumberFormat('$#,##0')
+             .setFontSize(8).setHorizontalAlignment('right')
+             .setBorder(true, true, true, true, false, false);
+
+        gFbmDays += skuFbmDays;
+        gFbmRev += skuFbmRev;
+        gFbmCost += skuFbmCost;
+        fbmRow += 1;
+      }
+
+      // Totals row
+      var fbmTCol = 1;
+      sheet.getRange(fbmRow, fbmTCol, 1, 5).merge()
+           .setValue('ALL SKUs TOTAL')
+           .setFontWeight('bold').setFontSize(8).setHorizontalAlignment('left')
+           .setBorder(true, true, true, true, false, false)
+           .setBackground('#F2F2F2');
+      fbmTCol += 5;
+
+      sheet.getRange(fbmRow, fbmTCol, 1, 2).merge()
+           .setValue(gFbmDays)
+           .setFontWeight('bold').setFontSize(8).setHorizontalAlignment('center')
+           .setBorder(true, true, true, true, false, false)
+           .setBackground('#F2F2F2');
+      fbmTCol += 2;
+
+      sheet.getRange(fbmRow, fbmTCol, 1, 2).merge()
+           .setValue(gFbmRev)
+           .setNumberFormat('$#,##0')
+           .setFontWeight('bold').setFontSize(8).setHorizontalAlignment('right')
+           .setBorder(true, true, true, true, false, false)
+           .setBackground('#F2F2F2');
+      fbmTCol += 2;
+
+      var gFbmCostR = sheet.getRange(fbmRow, fbmTCol, 1, 2).merge()
+           .setValue(gFbmCost)
+           .setNumberFormat('$#,##0')
+           .setFontWeight('bold').setFontSize(8).setHorizontalAlignment('right')
+           .setBorder(true, true, true, true, false, false);
+      if (gFbmCost > 0) gFbmCostR.setBackground(COLORS.FBM);
+      else gFbmCostR.setBackground('#F2F2F2');
+      fbmTCol += 2;
+
+      var gFbmNet = gFbmRev - gFbmCost;
+      var gFbmNetR = sheet.getRange(fbmRow, fbmTCol, 1, 2).merge()
+           .setValue(gFbmNet)
+           .setNumberFormat('$#,##0')
+           .setFontWeight('bold').setFontSize(8).setHorizontalAlignment('right')
+           .setBorder(true, true, true, true, false, false)
+           .setBackground('#F2F2F2');
+
+      finEndRow = fbmRow;
+    }
   }
 
   // Flush to ensure milestone + financial sections are committed

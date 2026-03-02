@@ -62,7 +62,7 @@ function readSkuSettings(skuId) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var p  = namedRangePrefix(skuId); // e.g. "SB_HW_100W_FBA"
 
-  // ── Read velocity overrides (up to 3) ──
+  // ── Read FBA velocity overrides (up to 3) ──
   var velOverrides = [];
   for (var v = 1; v <= 3; v++) {
     var vStart = readDate(ss, p + '__VEL_OVERRIDE_' + v + '_START');
@@ -72,6 +72,27 @@ function readSkuSettings(skuId) {
       velOverrides.push({ start: vStart, end: vEnd, value: Number(vVal) || 0 });
     }
   }
+
+  // ── Read FBM velocity overrides (up to 3) ──
+  var fbmVelOverrides = [];
+  for (var fv = 1; fv <= 3; fv++) {
+    var fvStart = readDate(ss, p + '__FBM_VEL_OVERRIDE_' + fv + '_START');
+    var fvEnd   = readDate(ss, p + '__FBM_VEL_OVERRIDE_' + fv + '_END');
+    var fvVal   = readNamedRange(ss, p + '__FBM_VEL_OVERRIDE_' + fv + '_VALUE');
+    if (fvStart && fvEnd && fvVal !== null) {
+      fbmVelOverrides.push({ start: fvStart, end: fvEnd, value: Number(fvVal) || 0 });
+    }
+  }
+
+  // ── Read FBM SKU ID ──
+  var fbmSkuIdRaw = readNamedRange(ss, p + '__FBM_SKU_ID');
+  var fbmSkuId = (fbmSkuIdRaw !== null) ? String(fbmSkuIdRaw) : '';
+
+  // ── Read FBM financial fields ──
+  var fbmSellingPriceRaw = readNamedRange(ss, p + '__FBM_SELLING_PRICE');
+  var fbmSellingPrice = (fbmSellingPriceRaw !== null) ? Number(fbmSellingPriceRaw) || 0 : 0;
+  var fbmFulfillmentCostRaw = readNamedRange(ss, p + '__FBM_FULFILLMENT_COST');
+  var fbmFulfillmentCost = (fbmFulfillmentCostRaw !== null) ? Number(fbmFulfillmentCostRaw) || 0 : 0;
 
   // ── Read FBA override (manual override for total FBA available) ──
   var fbaOverride = readNamedRange(ss, p + '__FBA_OVERRIDE');
@@ -163,7 +184,15 @@ function readSkuSettings(skuId) {
     // ── Financials ──
     sellingPrice:      sellingPrice,
     dppMargin:         dppMargin,
-    pastOosDays:       readNum(ss,  p + '__PAST_OOS_DAYS')
+    pastOosDays:       readNum(ss,  p + '__PAST_OOS_DAYS'),
+
+    // ── FBM Configuration ──
+    fbmSkuId:              fbmSkuId,
+    fbmDailyVelocity:      readNum(ss,  p + '__FBM_DAILY_VELOCITY'),
+    fbmVelOverrides:       fbmVelOverrides,
+    fbmSellingPrice:       fbmSellingPrice,
+    fbmFulfillmentCost:    fbmFulfillmentCost,
+    fbmStartDateOverride:  readDate(ss, p + '__FBM_START_DATE_OVERRIDE')
   };
 }
 

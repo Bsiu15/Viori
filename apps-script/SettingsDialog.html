@@ -503,6 +503,116 @@
       </div>
     </div>
 
+    <!-- ═══════ FBM Configuration ═══════ -->
+    <div class="section">
+      <div class="section-header">FBM Configuration</div>
+      <div class="section-body">
+        <div class="field">
+          <label>FBM SKU ID
+            <span class="info-tip" tabindex="0">i<span class="tip-text">Your Fulfilled-by-Merchant SKU ID. When set, Gorilla pulls FBM-specific inventory, velocity, and pricing data. Leave blank if no FBM listing exists.</span></span>
+          </label>
+          <input type="text" id="FBM_SKU_ID" style="text-align: left;">
+        </div>
+        <div class="field">
+          <label>FBM velocity (units/day)
+            <span class="info-tip" tabindex="0">i<span class="tip-text">FBM-specific daily sales velocity. Auto-populated from Gorilla when FBM SKU ID is set. Used instead of FBA velocity during FBM selling periods.</span></span>
+          </label>
+          <div class="auto-field-wrap">
+            <input type="number" id="FBM_DAILY_VELOCITY" min="0" step="0.1" oninput="onFbmVelocityInput()">
+            <span id="fbmVelAutoLabel" class="auto-label" style="display:none;">auto</span>
+            <span id="fbmVelReset" class="auto-reset" style="display:none;" onclick="resetFbmVelocity()">reset</span>
+          </div>
+        </div>
+        <div class="override-group">
+          <div class="override-label">FBM Override 1
+            <span class="info-tip" tabindex="0">i<span class="tip-text">Date-range velocity override for FBM. Auto-calculates from last year's FBM sales data when Gorilla is active.</span></span>
+          </div>
+          <div class="field">
+            <label>Start date</label>
+            <input type="date" id="FBM_VEL_OVERRIDE_1_START">
+          </div>
+          <div class="field">
+            <label>End date</label>
+            <input type="date" id="FBM_VEL_OVERRIDE_1_END">
+          </div>
+          <div class="field">
+            <label>Units/day</label>
+            <div class="auto-field-wrap">
+              <input type="number" id="FBM_VEL_OVERRIDE_1_VALUE" min="0" step="0.1" oninput="onFbmOverrideInput(1)">
+              <span id="fbmOvr1AutoLabel" class="auto-label" style="display:none;">auto</span>
+              <span id="fbmOvr1Reset" class="auto-reset" style="display:none;" onclick="resetFbmOverride(1)">reset</span>
+            </div>
+          </div>
+        </div>
+        <div class="override-group">
+          <div class="override-label">FBM Override 2</div>
+          <div class="field">
+            <label>Start date</label>
+            <input type="date" id="FBM_VEL_OVERRIDE_2_START">
+          </div>
+          <div class="field">
+            <label>End date</label>
+            <input type="date" id="FBM_VEL_OVERRIDE_2_END">
+          </div>
+          <div class="field">
+            <label>Units/day</label>
+            <div class="auto-field-wrap">
+              <input type="number" id="FBM_VEL_OVERRIDE_2_VALUE" min="0" step="0.1" oninput="onFbmOverrideInput(2)">
+              <span id="fbmOvr2AutoLabel" class="auto-label" style="display:none;">auto</span>
+              <span id="fbmOvr2Reset" class="auto-reset" style="display:none;" onclick="resetFbmOverride(2)">reset</span>
+            </div>
+          </div>
+        </div>
+        <div class="override-group">
+          <div class="override-label">FBM Override 3</div>
+          <div class="field">
+            <label>Start date</label>
+            <input type="date" id="FBM_VEL_OVERRIDE_3_START">
+          </div>
+          <div class="field">
+            <label>End date</label>
+            <input type="date" id="FBM_VEL_OVERRIDE_3_END">
+          </div>
+          <div class="field">
+            <label>Units/day</label>
+            <div class="auto-field-wrap">
+              <input type="number" id="FBM_VEL_OVERRIDE_3_VALUE" min="0" step="0.1" oninput="onFbmOverrideInput(3)">
+              <span id="fbmOvr3AutoLabel" class="auto-label" style="display:none;">auto</span>
+              <span id="fbmOvr3Reset" class="auto-reset" style="display:none;" onclick="resetFbmOverride(3)">reset</span>
+            </div>
+          </div>
+        </div>
+        <div class="field" style="margin-top: 6px; border-top: 1px solid #e8eaed; padding-top: 8px;">
+          <label>FBM selling price
+            <span class="info-tip" tabindex="0">i<span class="tip-text">FBM listing price. Used when selling from FBM and FBA is out of stock. Auto-populated from Gorilla when FBM SKU ID is set.</span></span>
+          </label>
+          <div class="auto-field-wrap">
+            <div class="currency-wrap">
+              <span class="prefix">$</span>
+              <input type="number" id="FBM_SELLING_PRICE" min="0" step="0.01" oninput="onFbmPriceInput()">
+            </div>
+            <span id="fbmPriceAutoLabel" class="auto-label" style="display:none;">auto</span>
+            <span id="fbmPriceReset" class="auto-reset" style="display:none;" onclick="resetFbmPrice()">reset</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>FBM fulfillment cost
+            <span class="info-tip" tabindex="0">i<span class="tip-text">Cost per unit for FBM shipping and handling. Used to calculate FBM fulfillment costs in the financial summary.</span></span>
+          </label>
+          <div class="currency-wrap">
+            <span class="prefix">$</span>
+            <input type="number" id="FBM_FULFILLMENT_COST" min="0" step="0.01">
+          </div>
+        </div>
+        <div class="field">
+          <label>FBM start date override
+            <span class="info-tip" tabindex="0">i<span class="tip-text">Force FBM selling to start on this date, even if FBA has stock. By default, FBM activates automatically when FBA runs out.</span></span>
+          </label>
+          <input type="date" id="FBM_START_DATE_OVERRIDE">
+        </div>
+      </div>
+    </div>
+
     <!-- ═══════ Sales Velocity ═══════ -->
     <div class="section">
       <div class="section-header">Sales Velocity</div>
@@ -920,6 +1030,105 @@
       }
     }
 
+    // ── FBM velocity auto/reset ──
+    var fbmVelGorillaOriginal = {};
+    var fbmPriceGorillaOriginal = null;
+
+    function onFbmVelocityInput() {
+      if (currentGorillaFields.indexOf('FBM_DAILY_VELOCITY') === -1) return;
+      var el = document.getElementById('FBM_DAILY_VELOCITY');
+      el.classList.remove('gorilla-linked');
+      document.getElementById('fbmVelAutoLabel').style.display = 'none';
+      document.getElementById('fbmVelReset').style.display = 'inline';
+    }
+
+    function resetFbmVelocity() {
+      var el = document.getElementById('FBM_DAILY_VELOCITY');
+      if (fbmVelGorillaOriginal['FBM_DAILY_VELOCITY'] !== undefined) {
+        el.value = fbmVelGorillaOriginal['FBM_DAILY_VELOCITY'];
+      }
+      el.classList.add('gorilla-linked');
+      document.getElementById('fbmVelAutoLabel').style.display = 'inline';
+      document.getElementById('fbmVelReset').style.display = 'none';
+    }
+
+    function onFbmOverrideInput(n) {
+      var key = 'FBM_VEL_OVERRIDE_' + n + '_VALUE';
+      if (currentGorillaFields.indexOf(key) === -1) return;
+      var el = document.getElementById(key);
+      el.classList.remove('gorilla-linked');
+      document.getElementById('fbmOvr' + n + 'AutoLabel').style.display = 'none';
+      document.getElementById('fbmOvr' + n + 'Reset').style.display = 'inline';
+    }
+
+    function resetFbmOverride(n) {
+      var key = 'FBM_VEL_OVERRIDE_' + n + '_VALUE';
+      var el = document.getElementById(key);
+      if (fbmVelGorillaOriginal[key] !== undefined) {
+        el.value = fbmVelGorillaOriginal[key];
+      }
+      el.classList.add('gorilla-linked');
+      document.getElementById('fbmOvr' + n + 'AutoLabel').style.display = 'inline';
+      document.getElementById('fbmOvr' + n + 'Reset').style.display = 'none';
+    }
+
+    function onFbmPriceInput() {
+      if (currentGorillaFields.indexOf('FBM_SELLING_PRICE') === -1) return;
+      var el = document.getElementById('FBM_SELLING_PRICE');
+      el.classList.remove('gorilla-linked');
+      document.getElementById('fbmPriceAutoLabel').style.display = 'none';
+      document.getElementById('fbmPriceReset').style.display = 'inline';
+    }
+
+    function resetFbmPrice() {
+      var el = document.getElementById('FBM_SELLING_PRICE');
+      if (fbmPriceGorillaOriginal !== null) el.value = fbmPriceGorillaOriginal;
+      el.classList.add('gorilla-linked');
+      document.getElementById('fbmPriceAutoLabel').style.display = 'inline';
+      document.getElementById('fbmPriceReset').style.display = 'none';
+    }
+
+    function applyFbmAutoState(gorillaFields) {
+      fbmVelGorillaOriginal = {};
+      fbmPriceGorillaOriginal = null;
+
+      // FBM velocity
+      if (gorillaFields.indexOf('FBM_DAILY_VELOCITY') > -1) {
+        var vel = document.getElementById('FBM_DAILY_VELOCITY');
+        fbmVelGorillaOriginal['FBM_DAILY_VELOCITY'] = vel.value;
+        document.getElementById('fbmVelAutoLabel').style.display = 'inline';
+        document.getElementById('fbmVelReset').style.display = 'none';
+      } else {
+        document.getElementById('fbmVelAutoLabel').style.display = 'none';
+        document.getElementById('fbmVelReset').style.display = 'none';
+      }
+
+      // FBM override values
+      for (var n = 1; n <= 3; n++) {
+        var key = 'FBM_VEL_OVERRIDE_' + n + '_VALUE';
+        if (gorillaFields.indexOf(key) > -1) {
+          var ovEl = document.getElementById(key);
+          fbmVelGorillaOriginal[key] = ovEl.value;
+          document.getElementById('fbmOvr' + n + 'AutoLabel').style.display = 'inline';
+          document.getElementById('fbmOvr' + n + 'Reset').style.display = 'none';
+        } else {
+          document.getElementById('fbmOvr' + n + 'AutoLabel').style.display = 'none';
+          document.getElementById('fbmOvr' + n + 'Reset').style.display = 'none';
+        }
+      }
+
+      // FBM price
+      if (gorillaFields.indexOf('FBM_SELLING_PRICE') > -1) {
+        var priceEl = document.getElementById('FBM_SELLING_PRICE');
+        fbmPriceGorillaOriginal = priceEl.value;
+        document.getElementById('fbmPriceAutoLabel').style.display = 'inline';
+        document.getElementById('fbmPriceReset').style.display = 'none';
+      } else {
+        document.getElementById('fbmPriceAutoLabel').style.display = 'none';
+        document.getElementById('fbmPriceReset').style.display = 'none';
+      }
+    }
+
     // ── Field ID lists ──
     var FIELD_IDS = [
       'FBA_OVERRIDE',
@@ -931,6 +1140,12 @@
       'UNFULFILLABLE_CUSTOMER_DAMAGED', 'UNFULFILLABLE_CARRIER_DAMAGED', 'UNFULFILLABLE_DISTRIBUTOR_DAMAGED',
       'RESERVED_TOTAL', 'UNSELLABLE_TOTAL',
       'FBA_CHECKIN_DELAY', 'FBM_ONHAND',
+      'FBM_SKU_ID',
+      'FBM_DAILY_VELOCITY',
+      'FBM_VEL_OVERRIDE_1_START', 'FBM_VEL_OVERRIDE_1_END', 'FBM_VEL_OVERRIDE_1_VALUE',
+      'FBM_VEL_OVERRIDE_2_START', 'FBM_VEL_OVERRIDE_2_END', 'FBM_VEL_OVERRIDE_2_VALUE',
+      'FBM_VEL_OVERRIDE_3_START', 'FBM_VEL_OVERRIDE_3_END', 'FBM_VEL_OVERRIDE_3_VALUE',
+      'FBM_SELLING_PRICE', 'FBM_FULFILLMENT_COST', 'FBM_START_DATE_OVERRIDE',
       'DAILY_VELOCITY',
       'VEL_OVERRIDE_1_START', 'VEL_OVERRIDE_1_END', 'VEL_OVERRIDE_1_VALUE',
       'VEL_OVERRIDE_2_START', 'VEL_OVERRIDE_2_END', 'VEL_OVERRIDE_2_VALUE',
@@ -947,10 +1162,16 @@
       'VEL_OVERRIDE_1_START', 'VEL_OVERRIDE_1_END',
       'VEL_OVERRIDE_2_START', 'VEL_OVERRIDE_2_END',
       'VEL_OVERRIDE_3_START', 'VEL_OVERRIDE_3_END',
+      'FBM_VEL_OVERRIDE_1_START', 'FBM_VEL_OVERRIDE_1_END',
+      'FBM_VEL_OVERRIDE_2_START', 'FBM_VEL_OVERRIDE_2_END',
+      'FBM_VEL_OVERRIDE_3_START', 'FBM_VEL_OVERRIDE_3_END',
+      'FBM_START_DATE_OVERRIDE',
       'SPD_SEND_DATE', 'LTL_SEND_DATE',
       'DTC_START_DATE', 'DTC_END_DATE',
       'ADHOC_SEND_DATE'
     ];
+
+    var TEXT_FIELDS = ['FBM_SKU_ID'];
 
     function isDateField(id) { return DATE_FIELDS.indexOf(id) > -1; }
 
@@ -995,6 +1216,15 @@
       // Reset selling price auto label
       document.getElementById('priceAutoLabel').style.display = 'none';
       document.getElementById('priceReset').style.display = 'none';
+      // Reset FBM auto labels
+      document.getElementById('fbmVelAutoLabel').style.display = 'none';
+      document.getElementById('fbmVelReset').style.display = 'none';
+      for (var fn = 1; fn <= 3; fn++) {
+        document.getElementById('fbmOvr' + fn + 'AutoLabel').style.display = 'none';
+        document.getElementById('fbmOvr' + fn + 'Reset').style.display = 'none';
+      }
+      document.getElementById('fbmPriceAutoLabel').style.display = 'none';
+      document.getElementById('fbmPriceReset').style.display = 'none';
       currentGorillaFields = [];
       isGorillaActive = false;
     }
@@ -1069,6 +1299,8 @@
             } else {
               el.value = '';
             }
+          } else if (isTextField(key)) {
+            el.value = (val !== null && val !== undefined) ? String(val) : '';
           } else {
             el.value = (val !== null && val !== undefined) ? val : '';
           }
@@ -1087,6 +1319,9 @@
         // Set selling price auto/reset state
         applySellingPriceAutoState(gorillaFields);
 
+        // Set FBM auto/reset state
+        applyFbmAutoState(gorillaFields);
+
         hideStatus();
       }).withFailureHandler(function(err) {
         showStatus('Error loading: ' + err.message, 'error');
@@ -1094,6 +1329,8 @@
     }
 
     // ── Collect form values ──
+    function isTextField(id) { return TEXT_FIELDS.indexOf(id) > -1; }
+
     function collectValues() {
       var values = {};
       for (var i = 0; i < FIELD_IDS.length; i++) {
@@ -1105,6 +1342,8 @@
           values[id] = fbaIsAuto ? null : (el.value !== '' ? Number(el.value) : null);
         } else if (isDateField(id)) {
           values[id] = el.value || null;
+        } else if (isTextField(id)) {
+          values[id] = el.value || '';
         } else {
           values[id] = el.value !== '' ? Number(el.value) : null;
         }

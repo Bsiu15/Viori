@@ -15,7 +15,7 @@
  */
 
 /**
- * Maps Settings tab field keys to Gorilla Data tab column letters.
+ * Maps Settings tab field keys to Gorilla Data tab column letters (FBA fields).
  * Used by SettingsTab.gs to create formula references.
  */
 var GORILLA_LINK_MAP = {
@@ -28,6 +28,16 @@ var GORILLA_LINK_MAP = {
   'UNSELLABLE_TOTAL':        'H',   // Display-only — total unfulfillable units
   'DAILY_VELOCITY':          'J',
   'SELLING_PRICE':           'K'
+};
+
+/**
+ * Maps Settings tab FBM field keys to Gorilla Data tab column letters.
+ * FBM data lives in columns M-P, pulled using the FBM SKU ID.
+ */
+var GORILLA_FBM_LINK_MAP = {
+  'FBM_ONHAND':              'N',   // FBM available/on-hand
+  'FBM_DAILY_VELOCITY':      'P',   // FBM daily velocity (derived)
+  'FBM_SELLING_PRICE':       'Q'    // FBM selling price
 };
 
 /**
@@ -54,8 +64,8 @@ function buildGorillaDataTab() {
   sheet.clear();
   sheet.clearFormats();
 
-  // Ensure enough columns and rows
-  var requiredCols = 11;
+  // Ensure enough columns and rows (11 FBA cols + 1 spacer + 6 FBM cols = 18)
+  var requiredCols = 18;
   var requiredRows = skus.length + 1;
   var currentCols  = sheet.getMaxColumns();
   var currentRows  = sheet.getMaxRows();
@@ -166,7 +176,7 @@ function buildGorillaDataTab() {
     '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + skuRange + ', ' + mktRef + '), 0)'
   );
 
-  // ── Formatting ──
+  // ── Formatting (FBA columns) ──
   if (skus.length > 0) {
     sheet.getRange(2, 1, skus.length, 1).setFontWeight('bold');
     // Cols B-I: inventory counts + sales count (integers)
@@ -177,10 +187,75 @@ function buildGorillaDataTab() {
     sheet.getRange(2, 11, skus.length, 1).setNumberFormat('$#,##0.00');
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // FBM SECTION (columns M-Q): Pulled using each SKU's optional FBM SKU ID
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // Col L: Spacer
+  sheet.getRange(1, 12).setValue('').setBackground('#F5F5F5');
+
+  // FBM Headers (cols M-Q)
+  var fbmHeaders = ['FBM SKU', 'FBM Available', 'FBM Sales (lookback)', 'FBM Velocity', 'FBM Price'];
+  sheet.getRange(1, 13, 1, fbmHeaders.length)
+       .setValues([fbmHeaders])
+       .setFontWeight('bold')
+       .setFontSize(9)
+       .setBackground('#FFF2CC')
+       .setBorder(true, true, true, true, false, false)
+       .setHorizontalAlignment('center');
+
+  // Col M: FBM SKU IDs (formula referencing Settings named range)
+  for (var fi = 0; fi < skus.length; fi++) {
+    var fbmPrefix = namedRangePrefix(skus[fi].id);
+    var fbmSkuRef = fbmPrefix + '__FBM_SKU_ID';
+    sheet.getRange(fi + 2, 13).setFormula(
+      '=IFERROR(' + fbmSkuRef + ', "")'
+    );
+  }
+
+  // Cols N-Q: Individual formulas per row (only compute when FBM SKU is set)
+  for (var fbi = 0; fbi < skus.length; fbi++) {
+    var fbmSkuCell = 'M' + (fbi + 2);
+
+    // Col N: FBM Available (fulfillable)
+    sheet.getRange(fbi + 2, 14).setFormula(
+      '=IF(' + fbmSkuCell + '<>"", IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + ', "fulfillable"), 0), "")'
+    );
+
+    // Col O: FBM Sales Count (lookback)
+    sheet.getRange(fbi + 2, 15).setFormula(
+      '=IF(' + fbmSkuCell + '<>"", IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + fbmSkuCell +
+      ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0), "")'
+    );
+
+    // Col P: FBM Daily Velocity (derived: sales / lookback days)
+    sheet.getRange(fbi + 2, 16).setFormula(
+      '=IF(O' + (fbi + 2) + '<>"", IFERROR(O' + (fbi + 2) + '/' + lookRef + ', 0), "")'
+    );
+
+    // Col Q: FBM Selling Price
+    sheet.getRange(fbi + 2, 17).setFormula(
+      '=IF(' + fbmSkuCell + '<>"", IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + '), 0), "")'
+    );
+  }
+
+  // ── FBM Formatting ──
+  if (skus.length > 0) {
+    sheet.getRange(2, 13, skus.length, 1).setFontWeight('bold'); // FBM SKU
+    sheet.getRange(2, 14, skus.length, 2).setNumberFormat('#,##0');  // Available + Sales
+    sheet.getRange(2, 16, skus.length, 1).setNumberFormat('#,##0.0'); // Velocity
+    sheet.getRange(2, 17, skus.length, 1).setNumberFormat('$#,##0.00'); // Price
+  }
+
   // ── Column widths ──
   sheet.setColumnWidth(1, 200);
   for (var c = 2; c <= 11; c++) {
     sheet.setColumnWidth(c, 130);
+  }
+  sheet.setColumnWidth(12, 20);  // Spacer
+  sheet.setColumnWidth(13, 200); // FBM SKU
+  for (var fc = 14; fc <= 17; fc++) {
+    sheet.setColumnWidth(fc, 130);
   }
 
   // ── Header notes (ELI5 + Settings mapping) ──
@@ -257,6 +332,33 @@ function buildGorillaDataTab() {
     'Settings field: "Selling Price"'
   );
 
+  // ── FBM Header notes ──
+  sheet.getRange(1, 13).setNote(
+    'FBM SKU = Your Fulfilled-by-Merchant product ID.\n' +
+    'Set the FBM SKU ID in the Settings tab for each product that has\n' +
+    'an FBM listing. Leave blank if no FBM counterpart exists.'
+  );
+  sheet.getRange(1, 14).setNote(
+    'FBM Available = Units you have on hand for merchant fulfillment.\n' +
+    'This is the FBM equivalent of the FBA "Available" column.\n\n' +
+    'Settings field: "FBM on-hand"'
+  );
+  sheet.getRange(1, 15).setNote(
+    'FBM Sales (lookback) = Total FBM units sold in the last N days.\n' +
+    'Used to derive FBM daily velocity for the forecast.'
+  );
+  sheet.getRange(1, 16).setNote(
+    'FBM Velocity = How many FBM units you sell per day on average.\n' +
+    'Calculated as: FBM Sales (lookback) / Lookback Days.\n\n' +
+    'Settings field: "FBM daily sales velocity"'
+  );
+  sheet.getRange(1, 17).setNote(
+    'FBM Price = Your current FBM listing price on Amazon.\n' +
+    'May differ from FBA price. Used when the forecast switches\n' +
+    'to FBM fulfillment to calculate revenue impact.\n\n' +
+    'Settings field: "FBM selling price"'
+  );
+
   sheet.setFrozenRows(1);
   SpreadsheetApp.flush();
 }
@@ -313,7 +415,7 @@ function linkSettingsToGorilla(force) {
       cell.setNote('Auto-populated from Gorilla ROI. Type a number to override.');
     }
 
-    // Link velocity override value formulas (auto-calc from last year's sales)
+    // Link FBA velocity override value formulas (auto-calc from last year's sales)
     for (var ovr = 1; ovr <= 3; ovr++) {
       var ovrKey  = 'VEL_OVERRIDE_' + ovr + '_VALUE';
       var ovrCell = ss.getRangeByName(prefix + '__' + ovrKey);
@@ -338,6 +440,54 @@ function linkSettingsToGorilla(force) {
         'Pulls last year\'s shipped sales for the same date range\n' +
         'and divides by the number of days to get daily velocity.\n\n' +
         'Just enter the start and end dates — this value fills in automatically.\n' +
+        'Type a number to manually override.'
+      );
+    }
+
+    // Link FBM fields to Gorilla Data tab
+    for (var fbmKey in GORILLA_FBM_LINK_MAP) {
+      if (!GORILLA_FBM_LINK_MAP.hasOwnProperty(fbmKey)) continue;
+
+      var fbmRangeName = prefix + '__' + fbmKey;
+      var fbmCell = ss.getRangeByName(fbmRangeName);
+      if (!fbmCell) continue;
+
+      var fbmExistingFormula = fbmCell.getFormula();
+      if (fbmExistingFormula && fbmExistingFormula.indexOf(GORILLA_DATA_TAB_NAME) > -1) continue;
+
+      if (!force && !fbmExistingFormula) {
+        var fbmVal = fbmCell.getValue();
+        if (fbmVal !== '' && fbmVal !== 0 && fbmVal !== null && fbmVal !== undefined) continue;
+      }
+
+      var fbmGorillaCol = GORILLA_FBM_LINK_MAP[fbmKey];
+      fbmCell.setFormula("=IFERROR('" + GORILLA_DATA_TAB_NAME + "'!" + fbmGorillaCol + gorillaRow + ", 0)");
+      fbmCell.setBackground('#E8F0FE');
+      fbmCell.setNote('Auto-populated from Gorilla ROI (FBM SKU). Type a number to override.');
+    }
+
+    // Link FBM velocity override value formulas
+    for (var fbmOvr = 1; fbmOvr <= 3; fbmOvr++) {
+      var fbmOvrKey  = 'FBM_VEL_OVERRIDE_' + fbmOvr + '_VALUE';
+      var fbmOvrCell = ss.getRangeByName(prefix + '__' + fbmOvrKey);
+      if (!fbmOvrCell) continue;
+
+      var fbmOvrFormula = fbmOvrCell.getFormula();
+      if (fbmOvrFormula && (fbmOvrFormula.indexOf(GORILLA_DATA_TAB_NAME) > -1 ||
+                            fbmOvrFormula.indexOf('GORILLA_') > -1)) continue;
+
+      if (!force && !fbmOvrFormula) {
+        var fbmOvrVal = fbmOvrCell.getValue();
+        if (fbmOvrVal !== '' && fbmOvrVal !== 0 && fbmOvrVal !== null && fbmOvrVal !== undefined) continue;
+      }
+
+      fbmOvrCell.setFormula(buildFbmVelAutoCalcFormula(prefix, fbmOvr));
+      fbmOvrCell.setBackground('#E8F0FE');
+      fbmOvrCell.setNote(
+        'Auto-calculated from Gorilla ROI historical data using your FBM SKU ID.\n' +
+        'Pulls last year\'s shipped sales for the same date range\n' +
+        'and divides by the number of days to get daily FBM velocity.\n\n' +
+        'Enter FBM SKU ID and override dates — this value fills in automatically.\n' +
         'Type a number to manually override.'
       );
     }

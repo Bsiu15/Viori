@@ -141,11 +141,14 @@ function buildDetailTab(skuDef, data, cfg) {
     sheet.setColumnWidth(cw, 145);
   }
 
-  // Track OOS financial data per month for the summary table
-  // monthKey -> { oosDays, lostRevenue, lostDpp }
+  // Track OOS and FBM financial data per month for the summary table
+  // monthKey -> { oosDays, lostRevenue, lostDpp, fbmDays, fbmRevenue, fbmCost }
   var monthFinancials = {};
   for (var mi2 = 0; mi2 < months.length; mi2++) {
-    monthFinancials[months[mi2].name] = { oosDays: 0, lostRevenue: 0, lostDpp: 0 };
+    monthFinancials[months[mi2].name] = {
+      oosDays: 0, lostRevenue: 0, lostDpp: 0,
+      fbmDays: 0, fbmRevenue: 0, fbmCost: 0
+    };
   }
 
   // ── Render each month ──
@@ -232,7 +235,7 @@ function buildDetailTab(skuDef, data, cfg) {
 
             // OOS financial impact line
             if (snap.channel === 'OOS' && hasFinancials) {
-              var dayLostRev = snap.effectiveVelocity * sellingPrice;
+              var dayLostRev = snap.effectiveVelocity * (snap.effectivePrice || sellingPrice);
               var dayLostDpp = dayLostRev * (dppMargin / 100);
               lines.push('Lost: ' + fmtDollar(dayLostRev) + ' rev');
 
@@ -240,6 +243,19 @@ function buildDetailTab(skuDef, data, cfg) {
               monthFinancials[mo.name].oosDays += 1;
               monthFinancials[mo.name].lostRevenue += dayLostRev;
               monthFinancials[mo.name].lostDpp += dayLostDpp;
+            }
+
+            // FBM cost impact line
+            if (snap.channel === 'FBM' && snap.fbmCostPerUnit > 0) {
+              var dayFbmCost = snap.unitsSold * snap.fbmCostPerUnit;
+              lines.push('FBM cost: ' + fmtDollar(dayFbmCost));
+
+              monthFinancials[mo.name].fbmDays += 1;
+              monthFinancials[mo.name].fbmRevenue += snap.unitsSold * (snap.effectivePrice || sellingPrice);
+              monthFinancials[mo.name].fbmCost += dayFbmCost;
+            } else if (snap.channel === 'FBM') {
+              monthFinancials[mo.name].fbmDays += 1;
+              monthFinancials[mo.name].fbmRevenue += snap.unitsSold * (snap.effectivePrice || sellingPrice);
             }
 
             cellValues.push(lines.join('\n'));
@@ -439,6 +455,90 @@ function buildDetailTab(skuDef, data, cfg) {
     } else {
       totalRevCell.setBackground('#D6E4F0');
       totalDppCell.setBackground('#D6E4F0');
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // FBM FULFILLMENT COST TABLE (only shown if any FBM days with costs)
+    // ══════════════════════════════════════════════════════════════════════
+
+    var totalFbmDays = 0, totalFbmRev = 0, totalFbmCost = 0;
+    for (var fbi = 0; fbi < months.length; fbi++) {
+      totalFbmDays += monthFinancials[months[fbi].name].fbmDays;
+      totalFbmRev  += monthFinancials[months[fbi].name].fbmRevenue;
+      totalFbmCost += monthFinancials[months[fbi].name].fbmCost;
+    }
+
+    if (totalFbmDays > 0) {
+      row += 2;
+
+      // Title
+      sheet.getRange(row, 1, 1, numCols).merge()
+           .setValue('FBM Fulfillment Summary — ' + skuDef.id)
+           .setFontSize(12)
+           .setFontWeight('bold')
+           .setBackground(COLORS.HEADER)
+           .setFontColor(COLORS.HEADER_FG)
+           .setHorizontalAlignment('left');
+      row += 1;
+
+      // Headers
+      var fbmFinHeaders = ['Month', 'FBM Days', 'FBM Revenue', 'FBM Cost'];
+      for (var fbh = 0; fbh < fbmFinHeaders.length; fbh++) {
+        sheet.getRange(row, fbh + 1)
+             .setValue(fbmFinHeaders[fbh])
+             .setFontWeight('bold')
+             .setFontSize(10)
+             .setBackground('#FFF2CC')
+             .setHorizontalAlignment('center')
+             .setBorder(true, true, true, true, false, false);
+      }
+      row += 1;
+
+      // Monthly rows
+      for (var fbmi = 0; fbmi < months.length; fbmi++) {
+        var fbmMName = months[fbmi].name;
+        var fbmMf = monthFinancials[fbmMName];
+
+        sheet.getRange(row, 1).setValue(fbmMName)
+             .setFontSize(10).setHorizontalAlignment('left')
+             .setBorder(true, true, true, true, false, false);
+        sheet.getRange(row, 2).setValue(fbmMf.fbmDays)
+             .setFontSize(10).setHorizontalAlignment('center')
+             .setBorder(true, true, true, true, false, false);
+        sheet.getRange(row, 3).setValue(fbmMf.fbmRevenue)
+             .setNumberFormat('$#,##0.00')
+             .setFontSize(10).setHorizontalAlignment('right')
+             .setBorder(true, true, true, true, false, false);
+        var fbmCostCell = sheet.getRange(row, 4);
+        fbmCostCell.setValue(fbmMf.fbmCost)
+             .setNumberFormat('$#,##0.00')
+             .setFontSize(10).setHorizontalAlignment('right')
+             .setBorder(true, true, true, true, false, false);
+        if (fbmMf.fbmCost > 0) {
+          fbmCostCell.setBackground(COLORS.FBM);
+        }
+        row += 1;
+      }
+
+      // Total row
+      sheet.getRange(row, 1).setValue('TOTAL')
+           .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('left')
+           .setBorder(true, true, true, true, false, false)
+           .setBackground('#FFF2CC');
+      sheet.getRange(row, 2).setValue(totalFbmDays)
+           .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center')
+           .setBorder(true, true, true, true, false, false)
+           .setBackground('#FFF2CC');
+      sheet.getRange(row, 3).setValue(totalFbmRev)
+           .setNumberFormat('$#,##0.00')
+           .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
+           .setBorder(true, true, true, true, false, false)
+           .setBackground('#FFF2CC');
+      sheet.getRange(row, 4).setValue(totalFbmCost)
+           .setNumberFormat('$#,##0.00')
+           .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('right')
+           .setBorder(true, true, true, true, false, false)
+           .setBackground('#FFF2CC');
     }
   }
 
