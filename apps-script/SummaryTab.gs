@@ -375,31 +375,28 @@ function buildSummaryTab(allResults) {
     // Grand totals accumulators
     var grandOosDays = 0, grandLostRev = 0, grandFbmSaved = 0, grandFbmCost = 0;
 
-    // Data rows — one per SKU (past + projected combined)
+    // ── Compute all SKU financial data in memory first ──
+    var finRowData = []; // array of { values: [...], bgs: [...], bold: bool }
     for (var si = 0; si < numSkus; si++) {
       var skuResult = allResults[si];
       var skuCfg = skuResult.cfg;
       var price = (skuCfg && skuCfg.sellingPrice) ? skuCfg.sellingPrice : 0;
       var snaps = skuResult.snapshots;
 
-      // Past OOS from user-entered data
       var pastDays = (skuCfg && skuCfg.pastOosDays) ? skuCfg.pastOosDays : 0;
       var pastEffVel = (skuCfg && skuCfg.dailyVelocity) ? skuCfg.dailyVelocity : 0;
       var pastRev = pastDays * pastEffVel * price;
 
-      // Projected OOS + FBM from simulation
       var projOosDays = 0, projLostRev = 0, projFbmSaved = 0, projFbmCost = 0;
       var fbmPrice = (skuCfg && skuCfg.fbmSellingPrice > 0) ? skuCfg.fbmSellingPrice : price;
 
       for (var di = 0; di < snaps.length; di++) {
         var snap = snaps[di];
-        // OOS: any day with unfulfilled demand counts as 1 whole day
         if (snap.unfulfilledUnits > 0 && price > 0) {
           projOosDays += 1;
           var dayPrice = (snap.effectivePrice > 0) ? snap.effectivePrice : price;
           projLostRev += snap.unfulfilledUnits * dayPrice;
         }
-        // FBM: revenue saved + fulfillment cost
         if (snap.soldFromFbm > 0) {
           projFbmSaved += snap.soldFromFbm * fbmPrice;
           projFbmCost += snap.soldFromFbm * (snap.fbmCostPerUnit || 0);
@@ -410,119 +407,89 @@ function buildSummaryTab(allResults) {
       var skuLostRev = pastRev + projLostRev;
       var skuNetImpact = -(skuLostRev + projFbmCost);
 
-      // Write row
-      var dCol = 1;
-      sheet.getRange(finRow, dCol, 1, finColSpans[0]).merge()
-           .setValue(skuResult.skuDef.id)
-           .setFontSize(9).setHorizontalAlignment('left')
-           .setBorder(true, true, true, true, false, false);
-      dCol += finColSpans[0];
-
-      // OOS Days
-      var oosDaysR = sheet.getRange(finRow, dCol, 1, finColSpans[1]).merge()
-           .setValue(skuOosDays)
-           .setFontSize(9).setHorizontalAlignment('center')
-           .setBorder(true, true, true, true, false, false);
-      if (skuOosDays > 0) oosDaysR.setBackground(COLORS.OOS);
-      dCol += finColSpans[1];
-
-      // Lost Revenue
-      var lostRevR = sheet.getRange(finRow, dCol, 1, finColSpans[2]).merge()
-           .setValue(skuLostRev)
-           .setNumberFormat('$#,##0')
-           .setFontSize(9).setHorizontalAlignment('right')
-           .setBorder(true, true, true, true, false, false);
-      if (skuLostRev > 0) lostRevR.setBackground(COLORS.OOS);
-      dCol += finColSpans[2];
-
-      // FBM Saved
-      var fbmSavedR = sheet.getRange(finRow, dCol, 1, finColSpans[3]).merge()
-           .setValue(projFbmSaved)
-           .setNumberFormat('$#,##0')
-           .setFontSize(9).setHorizontalAlignment('right')
-           .setBorder(true, true, true, true, false, false);
-      if (projFbmSaved > 0) fbmSavedR.setBackground('#C6EFCE');
-      dCol += finColSpans[3];
-
-      // FBM Cost
-      var fbmCostR = sheet.getRange(finRow, dCol, 1, finColSpans[4]).merge()
-           .setValue(projFbmCost)
-           .setNumberFormat('$#,##0')
-           .setFontSize(9).setHorizontalAlignment('right')
-           .setBorder(true, true, true, true, false, false);
-      if (projFbmCost > 0) fbmCostR.setBackground('#FFF2CC');
-      dCol += finColSpans[4];
-
-      // Net Impact
-      sheet.getRange(finRow, dCol, 1, finColSpans[5]).merge()
-           .setValue(skuNetImpact)
-           .setNumberFormat('$#,##0;-$#,##0;$0')
-           .setFontWeight('bold')
-           .setFontSize(9).setHorizontalAlignment('right')
-           .setBorder(true, true, true, true, false, false)
-           .setBackground(skuNetImpact < 0 ? '#D6E4F0' : '#C6EFCE');
-
       grandOosDays += skuOosDays;
       grandLostRev += skuLostRev;
       grandFbmSaved += projFbmSaved;
       grandFbmCost += projFbmCost;
 
+      finRowData.push({
+        values: [skuResult.skuDef.id, skuOosDays, skuLostRev, projFbmSaved, projFbmCost, skuNetImpact],
+        bgs: [
+          null,
+          skuOosDays > 0 ? COLORS.OOS : null,
+          skuLostRev > 0 ? COLORS.OOS : null,
+          projFbmSaved > 0 ? '#C6EFCE' : null,
+          projFbmCost > 0 ? '#FFF2CC' : null,
+          skuNetImpact < 0 ? '#D6E4F0' : '#C6EFCE'
+        ],
+        bold: false
+      });
+    }
+
+    // Totals row
+    var grandNet = -(grandLostRev + grandFbmCost);
+    finRowData.push({
+      values: ['ALL SKUs TOTAL', grandOosDays, grandLostRev, grandFbmSaved, grandFbmCost, grandNet],
+      bgs: [
+        '#F2F2F2',
+        grandOosDays > 0 ? COLORS.OOS : '#F2F2F2',
+        grandLostRev > 0 ? COLORS.OOS : '#F2F2F2',
+        grandFbmSaved > 0 ? '#C6EFCE' : '#F2F2F2',
+        grandFbmCost > 0 ? '#FFF2CC' : '#F2F2F2',
+        grandNet < 0 ? '#D6E4F0' : '#C6EFCE'
+      ],
+      bold: true
+    });
+
+    // ── Write data + totals: merge fields then batch format ──
+    var dataStartRow = finRow;
+    for (var rd = 0; rd < finRowData.length; rd++) {
+      var rowInfo = finRowData[rd];
+      var dCol = 1;
+      for (var fd = 0; fd < finHeaders.length; fd++) {
+        var span = finColSpans[fd];
+        var mergedRange = sheet.getRange(finRow, dCol, 1, span).merge();
+        mergedRange.setValue(rowInfo.values[fd]);
+        if (rowInfo.bgs[fd]) mergedRange.setBackground(rowInfo.bgs[fd]);
+        dCol += span;
+      }
       finRow += 1;
     }
 
-    // ── ALL SKUs TOTAL row ──
-    var grandNet = -(grandLostRev + grandFbmCost);
-    var tCol = 1;
-    sheet.getRange(finRow, tCol, 1, finColSpans[0]).merge()
-         .setValue('ALL SKUs TOTAL')
-         .setFontWeight('bold').setFontSize(9).setHorizontalAlignment('left')
-         .setBorder(true, true, true, true, false, false)
-         .setBackground('#F2F2F2');
-    tCol += finColSpans[0];
+    // Batch formatting on entire data block (all SKU rows + totals)
+    var dataRows = finRowData.length;
+    var dataRange = sheet.getRange(dataStartRow, 1, dataRows, finTotalCols);
+    dataRange.setFontSize(9);
+    dataRange.setBorder(true, true, true, true, false, false);
 
-    var tOosDaysR = sheet.getRange(finRow, tCol, 1, finColSpans[1]).merge()
-         .setValue(grandOosDays)
-         .setFontWeight('bold').setFontSize(9).setHorizontalAlignment('center')
-         .setBorder(true, true, true, true, false, false);
-    if (grandOosDays > 0) tOosDaysR.setBackground(COLORS.OOS);
-    else tOosDaysR.setBackground('#F2F2F2');
-    tCol += finColSpans[1];
+    // Build alignment + format + weight arrays per-cell
+    var allAligns  = [];
+    var allFormats = [];
+    var allWeights = [];
+    var fieldAligns  = ['left', 'center', 'right', 'right', 'right', 'right'];
+    var fieldFormats = ['', '', '$#,##0', '$#,##0', '$#,##0', '$#,##0;-$#,##0;$0'];
 
-    var tLostRevR = sheet.getRange(finRow, tCol, 1, finColSpans[2]).merge()
-         .setValue(grandLostRev)
-         .setNumberFormat('$#,##0')
-         .setFontWeight('bold').setFontSize(9).setHorizontalAlignment('right')
-         .setBorder(true, true, true, true, false, false);
-    if (grandLostRev > 0) tLostRevR.setBackground(COLORS.OOS);
-    else tLostRevR.setBackground('#F2F2F2');
-    tCol += finColSpans[2];
+    for (var ar = 0; ar < dataRows; ar++) {
+      var rowAligns  = [];
+      var rowFormats = [];
+      var rowWeights = [];
+      var isBold = finRowData[ar].bold;
+      for (var af = 0; af < finHeaders.length; af++) {
+        for (var ac = 0; ac < finColSpans[af]; ac++) {
+          rowAligns.push(fieldAligns[af]);
+          rowFormats.push(fieldFormats[af]);
+          rowWeights.push(isBold || af === finHeaders.length - 1 ? 'bold' : 'normal');
+        }
+      }
+      allAligns.push(rowAligns);
+      allFormats.push(rowFormats);
+      allWeights.push(rowWeights);
+    }
+    dataRange.setHorizontalAlignments(allAligns);
+    dataRange.setNumberFormats(allFormats);
+    dataRange.setFontWeights(allWeights);
 
-    var tFbmSavedR = sheet.getRange(finRow, tCol, 1, finColSpans[3]).merge()
-         .setValue(grandFbmSaved)
-         .setNumberFormat('$#,##0')
-         .setFontWeight('bold').setFontSize(9).setHorizontalAlignment('right')
-         .setBorder(true, true, true, true, false, false);
-    if (grandFbmSaved > 0) tFbmSavedR.setBackground('#C6EFCE');
-    else tFbmSavedR.setBackground('#F2F2F2');
-    tCol += finColSpans[3];
-
-    var tFbmCostR = sheet.getRange(finRow, tCol, 1, finColSpans[4]).merge()
-         .setValue(grandFbmCost)
-         .setNumberFormat('$#,##0')
-         .setFontWeight('bold').setFontSize(9).setHorizontalAlignment('right')
-         .setBorder(true, true, true, true, false, false);
-    if (grandFbmCost > 0) tFbmCostR.setBackground('#FFF2CC');
-    else tFbmCostR.setBackground('#F2F2F2');
-    tCol += finColSpans[4];
-
-    sheet.getRange(finRow, tCol, 1, finColSpans[5]).merge()
-         .setValue(grandNet)
-         .setNumberFormat('$#,##0;-$#,##0;$0')
-         .setFontWeight('bold').setFontSize(9).setHorizontalAlignment('right')
-         .setBorder(true, true, true, true, false, false)
-         .setBackground(grandNet < 0 ? '#D6E4F0' : '#C6EFCE');
-
-    finEndRow = finRow;
+    finEndRow = finRow - 1;
   }
 
   // Flush to ensure milestone + financial sections are committed

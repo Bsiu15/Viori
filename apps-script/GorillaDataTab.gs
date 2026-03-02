@@ -213,31 +213,34 @@ function buildGorillaDataTab() {
     );
   }
 
-  // Cols N-Q: Individual formulas per row (only compute when FBM SKU is set)
+  // Cols N-Q: FBM data — use range-based formulas where possible to minimize Gorilla API calls
+  var fbmSkuRange = 'M2:M' + lastRow;
+
+  // Col N: FBM Available (fulfillable) — range-based, 1 API call for all SKUs
+  // Returns "" for rows where FBM SKU is blank (Gorilla returns 0 for empty SKUs, so
+  // we wrap in an IF/ARRAYFORMULA to blank out rows with no FBM SKU)
+  sheet.getRange(2, 14).setFormula(
+    '=ARRAYFORMULA(IF(' + fbmSkuRange + '<>"", IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + fbmSkuRange + ', ' + mktRef + ', "fulfillable"), 0), ""))'
+  );
+
+  // Col O: FBM Sales Count (lookback) — per-row (GORILLA_SALESCOUNT doesn't spill)
   for (var fbi = 0; fbi < skus.length; fbi++) {
     var fbmSkuCell = 'M' + (fbi + 2);
-
-    // Col N: FBM Available (fulfillable)
-    sheet.getRange(fbi + 2, 14).setFormula(
-      '=IF(' + fbmSkuCell + '<>"", IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + ', "fulfillable"), 0), "")'
-    );
-
-    // Col O: FBM Sales Count (lookback)
     sheet.getRange(fbi + 2, 15).setFormula(
       '=IF(' + fbmSkuCell + '<>"", IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + fbmSkuCell +
       ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0), "")'
     );
-
-    // Col P: FBM Daily Velocity (derived: sales / lookback days)
-    sheet.getRange(fbi + 2, 16).setFormula(
-      '=IF(O' + (fbi + 2) + '<>"", IFERROR(O' + (fbi + 2) + '/' + lookRef + ', 0), "")'
-    );
-
-    // Col Q: FBM Selling Price
-    sheet.getRange(fbi + 2, 17).setFormula(
-      '=IF(' + fbmSkuCell + '<>"", IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + '), 0), "")'
-    );
   }
+
+  // Col P: FBM Daily Velocity (derived: sales / lookback days — no Gorilla API call)
+  sheet.getRange(2, 16).setFormula(
+    '=ARRAYFORMULA(IF(O2:O' + lastRow + '<>"", IFERROR(O2:O' + lastRow + '/' + lookRef + ', 0), ""))'
+  );
+
+  // Col Q: FBM Selling Price — range-based, 1 API call for all SKUs
+  sheet.getRange(2, 17).setFormula(
+    '=ARRAYFORMULA(IF(' + fbmSkuRange + '<>"", IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + fbmSkuRange + ', ' + mktRef + '), 0), ""))'
+  );
 
   // ── FBM Formatting ──
   if (skus.length > 0) {
