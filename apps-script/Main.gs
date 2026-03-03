@@ -253,6 +253,17 @@ function saveSkuSettingsFromDialog(skuId, values) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var p  = namedRangePrefix(skuId);
 
+  // ── Self-heal: if any named ranges are missing, rebuild Settings tab ──
+  // This happens on the first save after new fields are added to the code.
+  // buildSettingsTab() preserves existing values and creates new named ranges.
+  // Test for the most recently added field — if it exists, all older fields do too.
+  var needsRebuild = !ss.getRangeByName(p + '__FBM_SKU_ID') ||
+                     !ss.getRangeByName(p + '__FBM_CONVERSION_RATE');
+  if (needsRebuild) {
+    buildSettingsTab();
+    SpreadsheetApp.flush();
+  }
+
   var dateFields = [
     'VEL_OVERRIDE_1_START', 'VEL_OVERRIDE_1_END',
     'VEL_OVERRIDE_2_START', 'VEL_OVERRIDE_2_END',
@@ -334,9 +345,18 @@ function saveSkuSettingsFromDialog(skuId, values) {
 
   SpreadsheetApp.flush();
 
-  // If FBM SKU ID was set, auto-link FBM fields to Gorilla Data tab
-  // so FBM data starts flowing into the forecast automatically
+  // If FBM SKU ID was set, ensure Gorilla Data tab has FBM columns,
+  // then auto-link FBM fields so data starts flowing immediately
   if (fbmSkuWasSet) {
+    // Ensure Gorilla Data tab exists and has FBM columns
+    var gorillaSheet = ss.getSheetByName(GORILLA_DATA_TAB_NAME);
+    var hasFbmCols = gorillaSheet &&
+      gorillaSheet.getMaxColumns() >= 17 &&
+      gorillaSheet.getRange(1, 13).getValue() === 'FBM SKU';
+    if (!hasFbmCols) {
+      buildGorillaDataTab();
+      SpreadsheetApp.flush();
+    }
     linkFbmForSku(skuId);
   }
 }
