@@ -483,8 +483,8 @@ function fetchGorillaDataStaged() {
 
   var totalStart    = new Date().getTime();
   var MAX_RUNTIME   = 300000; // 5 minutes
-  var MICRO_BATCH   = 3;      // formulas per batch
-  var basePause     = 3000;   // ms between SKUs (increases on errors)
+  var MICRO_BATCH   = 2;      // formulas per batch (kept very low to avoid throttling)
+  var basePause     = 5000;   // ms between SKUs (increases on errors)
   var currentPause  = basePause;
   var skusProcessed = 0;
   var failedSkus    = [];     // indices of SKUs that failed (for retry)
@@ -601,7 +601,9 @@ function fetchSingleSkuMicrobatched_(ss, sheet, skus, skuIndex, sellerRef, mktRe
     'Gorilla ROI', 60
   );
 
-  // Build all formula descriptors for this SKU
+  // Build all formula descriptors for this SKU.
+  // IMPORTANT: NO IFERROR wrapper — we need raw formulas so #ERROR! is
+  // visible to our error detection. Errors are caught during snapshot.
   var allFormulas = [];
 
   // Cols B-H: GORILLA_INVENTORY per category
@@ -609,21 +611,21 @@ function fetchSingleSkuMicrobatched_(ss, sheet, skus, skuIndex, sellerRef, mktRe
     var cat = GORILLA_INVENTORY_CATS[ic];
     allFormulas.push({
       cell: sheet.getRange(rowNum, cat.col),
-      formula: '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuCell + ', ' + mktRef + ', "' + cat.category + '"), 0)'
+      formula: '=GORILLA_INVENTORY(' + sellerRef + ', ' + skuCell + ', ' + mktRef + ', "' + cat.category + '")'
     });
   }
 
   // Col I: Sales Count
   allFormulas.push({
     cell: sheet.getRange(rowNum, 9),
-    formula: '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + skuCell +
-             ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
+    formula: '=GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + skuCell +
+             ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd"))'
   });
 
   // Col K: Selling Price
   allFormulas.push({
     cell: sheet.getRange(rowNum, 11),
-    formula: '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + skuCell + ', ' + mktRef + '), 0)'
+    formula: '=GORILLA_MYPRICE(' + sellerRef + ', ' + skuCell + ', ' + mktRef + ')'
   });
 
   // FBM formulas (if configured)
@@ -635,16 +637,16 @@ function fetchSingleSkuMicrobatched_(ss, sheet, skus, skuIndex, sellerRef, mktRe
 
     allFormulas.push({
       cell: sheet.getRange(rowNum, 14),
-      formula: '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + ', "fulfillable"), 0)'
+      formula: '=GORILLA_INVENTORY(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + ', "fulfillable")'
     });
     allFormulas.push({
       cell: sheet.getRange(rowNum, 15),
-      formula: '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + fbmSkuCell +
-               ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
+      formula: '=GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + fbmSkuCell +
+               ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd"))'
     });
     allFormulas.push({
       cell: sheet.getRange(rowNum, 17),
-      formula: '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + '), 0)'
+      formula: '=GORILLA_MYPRICE(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + ')'
     });
   }
 
@@ -659,9 +661,9 @@ function fetchSingleSkuMicrobatched_(ss, sheet, skus, skuIndex, sellerRef, mktRe
       // leave live formulas on the sheet. But the values will be 0.
     }
 
-    // Brief pause between micro-batches within the same SKU
+    // Pause between micro-batches within the same SKU
     if (b + batchSize < allFormulas.length) {
-      Utilities.sleep(2000);
+      Utilities.sleep(3000);
     }
   }
 
@@ -709,24 +711,25 @@ function fetchGorillaDataForSku(skuIndex, fbmOnly) {
   var skuCell = 'A' + rowNum;
   var allFormulas = [];
 
+  // Raw formulas (no IFERROR) — errors caught during snapshot
   if (!fbmOnly) {
     for (var ic = 0; ic < GORILLA_INVENTORY_CATS.length; ic++) {
       var cat = GORILLA_INVENTORY_CATS[ic];
       allFormulas.push({
         cell: sheet.getRange(rowNum, cat.col),
-        formula: '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuCell + ', ' + mktRef + ', "' + cat.category + '"), 0)'
+        formula: '=GORILLA_INVENTORY(' + sellerRef + ', ' + skuCell + ', ' + mktRef + ', "' + cat.category + '")'
       });
     }
 
     allFormulas.push({
       cell: sheet.getRange(rowNum, 9),
-      formula: '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + skuCell +
-               ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
+      formula: '=GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + skuCell +
+               ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd"))'
     });
 
     allFormulas.push({
       cell: sheet.getRange(rowNum, 11),
-      formula: '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + skuCell + ', ' + mktRef + '), 0)'
+      formula: '=GORILLA_MYPRICE(' + sellerRef + ', ' + skuCell + ', ' + mktRef + ')'
     });
   }
 
@@ -737,27 +740,27 @@ function fetchGorillaDataForSku(skuIndex, fbmOnly) {
 
     allFormulas.push({
       cell: sheet.getRange(rowNum, 14),
-      formula: '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + ', "fulfillable"), 0)'
+      formula: '=GORILLA_INVENTORY(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + ', "fulfillable")'
     });
     allFormulas.push({
       cell: sheet.getRange(rowNum, 15),
-      formula: '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + fbmSkuCell +
-               ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
+      formula: '=GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + fbmSkuCell +
+               ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd"))'
     });
     allFormulas.push({
       cell: sheet.getRange(rowNum, 17),
-      formula: '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + '), 0)'
+      formula: '=GORILLA_MYPRICE(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + ')'
     });
   }
 
   if (allFormulas.length === 0) return;
 
-  // Process in micro-batches of 3
-  for (var b = 0; b < allFormulas.length; b += 3) {
-    var batch = allFormulas.slice(b, b + 3);
+  // Process in micro-batches of 2
+  for (var b = 0; b < allFormulas.length; b += 2) {
+    var batch = allFormulas.slice(b, b + 2);
     writeBatchAndSnapshot_(sheet, batch, 30000);
-    if (b + 3 < allFormulas.length) {
-      Utilities.sleep(2000);
+    if (b + 2 < allFormulas.length) {
+      Utilities.sleep(3000);
     }
   }
 
