@@ -411,25 +411,6 @@ function waitForGorillaFormulas(skuId) {
     }
   }
 
-  // Also watch FBM Gorilla Data tab cells if an FBM SKU is configured
-  // (these need time for the Gorilla add-on to compute)
-  var gorillaSheet = ss.getSheetByName(GORILLA_DATA_TAB_NAME);
-  if (gorillaSheet) {
-    var skus = getSkus();
-    for (var si = 0; si < skus.length; si++) {
-      if (skus[si].id === skuId) {
-        var fbmSkuCell = gorillaSheet.getRange(si + 2, 13); // Col M: FBM SKU
-        var fbmSkuVal  = fbmSkuCell.getDisplayValue();
-        if (fbmSkuVal && fbmSkuVal !== '') {
-          // FBM SKU is set — watch the FBM Available (col N) and FBM Price (col Q)
-          cellsToWatch.push(gorillaSheet.getRange(si + 2, 14)); // FBM Available
-          cellsToWatch.push(gorillaSheet.getRange(si + 2, 17)); // FBM Price
-        }
-        break;
-      }
-    }
-  }
-
   if (cellsToWatch.length === 0) return;
 
   // Show a toast so the user knows why the sidebar is paused
@@ -460,13 +441,20 @@ function waitForGorillaFormulas(skuId) {
       }
     }
 
-    if (allResolved) {
-      ss.toast('Velocity override data ready.', 'Gorilla ROI', 3);
-      return;
+    if (allResolved) break;
+  }
+
+  // ── Snapshot: convert resolved formulas to plain values ──
+  // Prevents live GORILLA_SALESCOUNT formulas from persisting on the
+  // Settings tab, which would fire API calls every time the sheet opens.
+  for (var sn = 0; sn < cellsToWatch.length; sn++) {
+    var snapVal = cellsToWatch[sn].getValue();
+    if (typeof snapVal === 'number' && !isNaN(snapVal)) {
+      cellsToWatch[sn].setValue(snapVal);
     }
   }
-  // Timeout — proceed anyway; the value will populate on next refresh
-  ss.toast('Gorilla data timed out — proceeding with available values.', 'Gorilla ROI', 5);
+
+  ss.toast('Velocity override data ready.', 'Gorilla ROI', 3);
 }
 
 /**
@@ -502,6 +490,9 @@ function initialSetup() {
 /**
  * Rebuilds the Gorilla Data tab and re-links Settings cells.
  * Use after entering or changing Gorilla ROI Seller ID.
+ *
+ * Uses staged fetching (one SKU at a time) to avoid Google Sheets
+ * rate limits on Gorilla custom function calls.
  */
 function refreshGorillaData() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -519,22 +510,26 @@ function refreshGorillaData() {
 
   ss.toast('Building Gorilla Data tab...', 'Gorilla ROI', 5);
 
-  // Build the Gorilla Data formula sheet
+  // Step 1: Build the tab structure (headers, SKU IDs, placeholder values — no formulas)
   buildGorillaDataTab();
 
-  // Link Settings cells to Gorilla Data — force=true to overwrite stale values
+  // Step 2: Staged fetch — one SKU at a time to avoid rate limits
+  fetchGorillaDataStaged();
+
+  // Step 3: Link Settings cells to the cached Gorilla Data values
+  // force=true to overwrite stale values
   linkSettingsToGorilla(true);
 
   ss.toast(
-    'Gorilla Data linked! Wait ~30s for formulas to populate, then run "Recalculate All".',
+    'Gorilla Data refreshed! Run "Recalculate All" to update the forecast.',
     'Done', 10
   );
 }
 
 /**
  * Diagnoses Gorilla ROI connection status and shows a report.
- * Checks: Seller ID, Gorilla Data tab, formula presence, cell values,
- * and the raw diagnostic columns for actual error messages.
+ * Writes a temporary diagnostic formula for each SKU (one at a time),
+ * reads the result, then clears it. This avoids persistent formulas.
  * Accessible from: Menu → Inventory Forecast → Check Gorilla Status
  */
 function diagnoseGorillaStatus() {
@@ -573,116 +568,106 @@ function diagnoseGorillaStatus() {
     return;
   }
 
-  // ── 3. Scan each SKU ──
+  // Check "Last Refreshed" from A1 note
+  var a1Note = sheet.getRange(1, 1).getNote() || '';
+  var refreshMatch = a1Note.match(/Last Refreshed: (.+)/);
+  if (refreshMatch) {
+    lines.push('Last Refreshed: ' + refreshMatch[1]);
+  }
+  lines.push('');
+
+  // ── 3. Quick scan: check cached values on the Gorilla Data tab ──
   var skus = getSkus();
-  var working = 0;
-  var errors = 0;
-  var loading = 0;
-  var zeros = 0;
-  var noFormula = 0;
-  var firstError = '';
+  var hasData = 0;
+  var zeroData = 0;
   var errorSkus = [];
 
   for (var i = 0; i < skus.length; i++) {
     var row = i + 2;
     var skuId = skus[i].id;
+    var availVal = sheet.getRange(row, 2).getValue(); // Col B: Available
 
-    // Check col B (Available) for formula presence
-    var availCell = sheet.getRange(row, 2);
-    var availFormula = availCell.getFormula();
-
-    if (!availFormula) {
-      noFormula++;
-      errorSkus.push(skuId + ': no formula');
-      continue;
-    }
-
-    // Check the raw diagnostic column (col S = 19) for actual errors
-    var testCell = sheet.getRange(row, 19);
-    var testFormula = testCell.getFormula();
-    var testDisplay = testCell.getDisplayValue();
-
-    if (testFormula) {
-      if (testDisplay === 'Loading...') {
-        loading++;
-        continue;
-      }
-      if (testDisplay && testDisplay.charAt(0) === '#') {
-        errors++;
-        errorSkus.push(skuId + ': ' + testDisplay);
-        if (!firstError) firstError = testDisplay;
-        continue;
-      }
-      if (testDisplay !== '' && testDisplay !== null) {
-        var numTest = Number(String(testDisplay).replace(/[,$]/g, ''));
-        if (!isNaN(numTest) && numTest > 0) {
-          working++;
-          continue;
-        }
-      }
-    }
-
-    // Fall back to checking col B value
-    var availDisplay = availCell.getDisplayValue();
-    if (availDisplay === 'Loading...') {
-      loading++;
-    } else if (availDisplay === '' || availDisplay === null) {
-      zeros++;
-      errorSkus.push(skuId + ': empty');
+    if (typeof availVal === 'number' && availVal > 0) {
+      hasData++;
     } else {
-      var numAvail = Number(String(availDisplay).replace(/[,$]/g, ''));
-      if (numAvail > 0) {
-        working++;
-      } else {
-        zeros++;
-      }
+      zeroData++;
+      errorSkus.push(skuId + ': Available = ' + availVal);
     }
   }
 
-  // ── 4. Build report ──
-  lines.push('RESULTS (' + skus.length + ' SKUs scanned)');
+  // ── 4. Live connection test: write a temp formula, check, clean up ──
+  ss.toast('Testing Gorilla connection...', 'Gorilla ROI', 30);
+  var sellerRef = 'GLOBAL__GORILLA_SELLER_ID';
+  var mktRef    = 'GLOBAL__GORILLA_MARKETPLACE';
+
+  // Use a temp cell beyond the data range for the test
+  var testRow = skus.length + 3;
+  var testCell = sheet.getRange(testRow, 2);
+  var testSkuCell = 'A2'; // test with first SKU
+
+  testCell.setFormula(
+    '=GORILLA_INVENTORY(' + sellerRef + ', ' + testSkuCell + ', ' + mktRef + ', "fulfillable")'
+  );
+  SpreadsheetApp.flush();
+
+  // Poll for up to 15 seconds
+  var testResult = '';
+  var testError = '';
+  for (var t = 0; t < 5; t++) {
+    Utilities.sleep(3000);
+    SpreadsheetApp.flush();
+    var testDisplay = testCell.getDisplayValue();
+    if (testDisplay === 'Loading...' || testDisplay === '' || testDisplay === null) continue;
+    if (testDisplay.charAt(0) === '#') {
+      testError = testDisplay;
+    } else {
+      testResult = testDisplay;
+    }
+    break;
+  }
+
+  // Clean up temp cell
+  testCell.setValue('');
+
+  // ── 5. Build report ──
+  lines.push('CACHED DATA (' + skus.length + ' SKUs)');
   lines.push('─────────────────────────');
-  if (working > 0) lines.push('Working: ' + working + ' SKU(s) pulling data');
-  if (loading > 0) lines.push('Loading: ' + loading + ' SKU(s) still computing');
-  if (zeros > 0)   lines.push('Zero/Empty: ' + zeros + ' SKU(s) — real zero or error masked');
-  if (errors > 0)  lines.push('ERRORS: ' + errors + ' SKU(s) — see below');
-  if (noFormula > 0) lines.push('No formula: ' + noFormula + ' SKU(s) — run Refresh Gorilla Data');
-
-  if (errorSkus.length > 0) {
-    lines.push('');
-    lines.push('PROBLEM SKUs:');
-    for (var e = 0; e < errorSkus.length && e < 10; e++) {
-      lines.push('  ' + errorSkus[e]);
-    }
-  }
-
-  if (errors > 0 || noFormula > 0 || (loading === 0 && working === 0)) {
-    lines.push('');
-    lines.push('COMMON FIXES:');
-    if (firstError === '#NAME?') {
-      lines.push('  #NAME? = Gorilla ROI add-on is not installed or not authorized.');
-      lines.push('  Fix: Extensions > Add-ons > Manage add-ons > enable Gorilla ROI.');
-    } else if (firstError === '#ERROR!') {
-      lines.push('  #ERROR! = Gorilla could not fetch data.');
-      lines.push('  Check: Seller ID, marketplace, and SKU IDs match your Gorilla account.');
-    }
-    if (noFormula > 0) {
-      lines.push('  No formula = Gorilla Data tab is outdated.');
-      lines.push('  Fix: Menu > Inventory Forecast > Refresh Gorilla Data');
-    }
-    if (loading > 0) {
-      lines.push('  Loading = Gorilla is still computing. Wait 30-60 seconds.');
-    }
-  }
-
-  if (working === skus.length) {
-    lines.push('');
-    lines.push('All SKUs are pulling data from Gorilla successfully!');
-  }
+  if (hasData > 0) lines.push('Has data: ' + hasData + ' SKU(s)');
+  if (zeroData > 0) lines.push('Zero/Empty: ' + zeroData + ' SKU(s)');
 
   lines.push('');
-  lines.push('TIP: Check the "FBA Test" and "FBM Test" columns on the');
-  lines.push('Gorilla Data tab to see raw errors for each SKU.');
+  lines.push('LIVE CONNECTION TEST');
+  lines.push('─────────────────────────');
+  if (testResult) {
+    lines.push('Result: ' + testResult + ' (Gorilla is connected!)');
+  } else if (testError) {
+    lines.push('Result: ' + testError);
+    if (testError === '#NAME?') {
+      lines.push('  → Gorilla ROI add-on is not installed or not authorized.');
+      lines.push('  Fix: Extensions > Add-ons > Manage add-ons > enable Gorilla ROI.');
+    } else if (testError === '#ERROR!') {
+      lines.push('  → Gorilla could not fetch data.');
+      lines.push('  Check: Seller ID, marketplace, and SKU IDs match your account.');
+    }
+  } else {
+    lines.push('Result: Timed out (Gorilla may be slow or rate-limited).');
+    lines.push('  Try again in a few minutes.');
+  }
+
+  if (errorSkus.length > 0 && errorSkus.length <= 10) {
+    lines.push('');
+    lines.push('SKUs WITH ZERO DATA:');
+    for (var e = 0; e < errorSkus.length; e++) {
+      lines.push('  ' + errorSkus[e]);
+    }
+    lines.push('');
+    lines.push('Fix: Run "Refresh Gorilla Data" to fetch fresh values.');
+  }
+
+  if (hasData === skus.length && testResult) {
+    lines.push('');
+    lines.push('Everything looks good! Gorilla is connected and data is cached.');
+  }
 
   ui.alert('Gorilla Connection Status', lines.join('\n'), ui.ButtonSet.OK);
 }

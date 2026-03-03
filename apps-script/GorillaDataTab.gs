@@ -1,16 +1,28 @@
 /**
  * GorillaDataTab.gs
  * ---------------------------------------------------------------------------
- * Builds a "Gorilla Data" tab that uses Gorilla ROI custom functions to pull
- * live inventory, sales, and pricing data from Amazon Seller Central.
+ * Builds a "Gorilla Data" tab that caches inventory, sales, and pricing data
+ * from Amazon Seller Central via Gorilla ROI custom functions.
  *
- * This tab acts as a data feed layer. The Settings tab references these cells
- * so that inventory levels, velocity, and pricing auto-populate from Amazon.
- * Users can override any Settings value by typing over the formula.
+ * ARCHITECTURE — "Snapshot" pattern:
+ *   The Gorilla Data tab stores PLAIN VALUES (cached data), not live Gorilla
+ *   formulas. This prevents Google Sheets from firing 100+ API calls every
+ *   time the spreadsheet opens, which causes rate-limiting errors.
+ *
+ *   buildGorillaDataTab()      — Creates tab structure with placeholder 0s
+ *   fetchGorillaDataStaged()   — Fetches data one SKU at a time:
+ *                                 write formulas → wait → snapshot to values
+ *   linkSettingsToGorilla()    — Links Settings cells to the cached values
+ *   linkFbmForSku()            — Per-SKU FBM linking after sidebar save
+ *
+ * Refresh flow:
+ *   Menu > Refresh Gorilla Data
+ *     → buildGorillaDataTab() (structure)
+ *     → fetchGorillaDataStaged() (staged fetch, ~10s per SKU)
+ *     → linkSettingsToGorilla(true) (link Settings + velocity overrides)
  *
  * Requires the Gorilla ROI Google Sheets add-on to be installed and connected
- * to a Seller Central account. Without it, formulas will show #NAME? errors
- * which are handled gracefully (treated as 0).
+ * to a Seller Central account.
  * ---------------------------------------------------------------------------
  */
 
@@ -41,11 +53,24 @@ var GORILLA_FBM_LINK_MAP = {
 };
 
 /**
- * Builds (or rebuilds) the Gorilla Data tab with GORILLA_* formulas.
- * Reads config from the GLOBAL__GORILLA_* named ranges on the Settings tab.
- * Each SKU gets one row with formulas for inventory, sales, and pricing.
+ * Gorilla inventory categories and their column positions on the data tab.
+ */
+var GORILLA_INVENTORY_CATS = [
+  { col: 2,  category: 'fulfillable' },       // Col B: Available
+  { col: 3,  category: 'inbound_working' },    // Col C: Inbound Working
+  { col: 4,  category: 'inbound_shipped' },    // Col D: Inbound Shipped
+  { col: 5,  category: 'inbound_receiving' },  // Col E: Inbound Receiving
+  { col: 6,  category: 'reserved' },           // Col F: Reserved
+  { col: 7,  category: 'transfer' },           // Col G: FC Transfer
+  { col: 8,  category: 'unsellable' }          // Col H: Unsellable
+];
+
+/**
+ * Builds (or rebuilds) the Gorilla Data tab STRUCTURE with placeholder values.
+ * Does NOT write any Gorilla API formulas — those are added temporarily by
+ * fetchGorillaDataStaged() during a refresh, then converted to plain values.
  *
- * Does nothing if the Gorilla Seller ID is not configured.
+ * This means opening the spreadsheet triggers zero Gorilla API calls.
  */
 function buildGorillaDataTab() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -64,8 +89,8 @@ function buildGorillaDataTab() {
   sheet.clear();
   sheet.clearFormats();
 
-  // Ensure enough columns and rows (11 FBA + 1 spacer + 5 FBM + 1 spacer + 2 diagnostic = 20)
-  var requiredCols = 20;
+  // 11 FBA cols + 1 spacer + 5 FBM cols = 17 columns
+  var requiredCols = 17;
   var requiredRows = skus.length + 1;
   var currentCols  = sheet.getMaxColumns();
   var currentRows  = sheet.getMaxRows();
@@ -76,7 +101,7 @@ function buildGorillaDataTab() {
     sheet.insertRowsAfter(currentRows, requiredRows - currentRows);
   }
 
-  // ── Headers ──
+  // ── FBA Headers ──
   var headers = [
     'SKU',
     'Available',
@@ -98,66 +123,25 @@ function buildGorillaDataTab() {
        .setBorder(true, true, true, true, false, false)
        .setHorizontalAlignment('center');
 
-  // Named range references used in formulas
-  var sellerRef = 'GLOBAL__GORILLA_SELLER_ID';
-  var mktRef    = 'GLOBAL__GORILLA_MARKETPLACE';
-  var lookRef   = 'GLOBAL__GORILLA_LOOKBACK_DAYS';
-
-  // ── Data rows ──
-  // Each SKU gets its own formula per column to ensure reliable data population.
-  // Gorilla add-on custom functions don't reliably spill results when given
-  // range inputs, so we use individual cell references per row.
-
-  // Col A: SKU IDs (plain values)
+  // ── Col A: SKU IDs (plain values) ──
   var skuValues = [];
   for (var i = 0; i < skus.length; i++) {
     skuValues.push([skus[i].id]);
   }
-  sheet.getRange(2, 1, skus.length, 1).setValues(skuValues);
-
-  var lastRow  = skus.length + 1;
-
-  // Named range references used in formulas
-  var inventoryCategories = [
-    { col: 2,  category: 'fulfillable' },       // Col B: Available
-    { col: 3,  category: 'inbound_working' },    // Col C: Inbound Working
-    { col: 4,  category: 'inbound_shipped' },    // Col D: Inbound Shipped
-    { col: 5,  category: 'inbound_receiving' },  // Col E: Inbound Receiving
-    { col: 6,  category: 'reserved' },           // Col F: Reserved
-    { col: 7,  category: 'transfer' },           // Col G: FC Transfer
-    { col: 8,  category: 'unsellable' }          // Col H: Unsellable
-  ];
-
-  for (var s = 0; s < skus.length; s++) {
-    var skuCell = 'A' + (s + 2);
-    var rowNum  = s + 2;
-
-    // Cols B-H: GORILLA_INVENTORY per category
-    for (var ic = 0; ic < inventoryCategories.length; ic++) {
-      var cat = inventoryCategories[ic];
-      sheet.getRange(rowNum, cat.col).setFormula(
-        '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuCell + ', ' + mktRef + ', "' + cat.category + '"), 0)'
-      );
-    }
-
-    // Col I: Sales Count (last N days)
-    sheet.getRange(rowNum, 9).setFormula(
-      '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + skuCell +
-      ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
-    );
-
-    // Col K: Selling Price
-    sheet.getRange(rowNum, 11).setFormula(
-      '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + skuCell + ', ' + mktRef + '), 0)'
-    );
+  if (skus.length > 0) {
+    sheet.getRange(2, 1, skus.length, 1).setValues(skuValues);
   }
 
-  // Col J: Daily Velocity (derived: sales / lookback days — no Gorilla API call)
-  sheet.getRange(2, 10).setFormula(
-    '=ARRAYFORMULA(IFERROR(I2:I' + lastRow + '/' + lookRef + ', 0))'
-  );
+  // ── Cols B-K: Placeholder values (0) ──
+  if (skus.length > 0) {
+    var placeholders = [];
+    for (var p = 0; p < skus.length; p++) {
+      placeholders.push([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]); // B through K
+    }
+    sheet.getRange(2, 2, skus.length, 10).setValues(placeholders);
+  }
 
-  // ── Formatting (FBA columns) ──
+  // ── FBA Formatting ──
   if (skus.length > 0) {
     sheet.getRange(2, 1, skus.length, 1).setFontWeight('bold');
     // Cols B-I: inventory counts + sales count (integers)
@@ -169,7 +153,7 @@ function buildGorillaDataTab() {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // FBM SECTION (columns M-Q): Pulled using each SKU's optional FBM SKU ID
+  // FBM SECTION (columns M-Q)
   // ══════════════════════════════════════════════════════════════════════════
 
   // Col L: Spacer
@@ -185,7 +169,7 @@ function buildGorillaDataTab() {
        .setBorder(true, true, true, true, false, false)
        .setHorizontalAlignment('center');
 
-  // Col M: FBM SKU IDs (formula referencing Settings named range)
+  // Col M: FBM SKU IDs (formula referencing Settings named range — NOT an API call)
   for (var fi = 0; fi < skus.length; fi++) {
     var fbmPrefix = namedRangePrefix(skus[fi].id);
     var fbmSkuRef = fbmPrefix + '__FBM_SKU_ID';
@@ -194,32 +178,13 @@ function buildGorillaDataTab() {
     );
   }
 
-  // Cols N-Q: FBM data — per-row formulas (Gorilla add-on functions don't work
-  // inside ARRAYFORMULA). Only compute when FBM SKU is set.
-  for (var fbi = 0; fbi < skus.length; fbi++) {
-    var fbmSkuCell = 'M' + (fbi + 2);
-    var fbmRowNum  = fbi + 2;
-
-    // Col N: FBM Available (fulfillable)
-    sheet.getRange(fbmRowNum, 14).setFormula(
-      '=IF(' + fbmSkuCell + '<>"", IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + ', "fulfillable"), 0), "")'
-    );
-
-    // Col O: FBM Sales Count (lookback)
-    sheet.getRange(fbmRowNum, 15).setFormula(
-      '=IF(' + fbmSkuCell + '<>"", IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + fbmSkuCell +
-      ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0), "")'
-    );
-
-    // Col P: FBM Daily Velocity (derived: sales / lookback days)
-    sheet.getRange(fbmRowNum, 16).setFormula(
-      '=IF(O' + fbmRowNum + '<>"", IFERROR(O' + fbmRowNum + '/' + lookRef + ', 0), "")'
-    );
-
-    // Col Q: FBM Selling Price
-    sheet.getRange(fbmRowNum, 17).setFormula(
-      '=IF(' + fbmSkuCell + '<>"", IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + '), 0), "")'
-    );
+  // Cols N-Q: Placeholder values
+  if (skus.length > 0) {
+    var fbmPlaceholders = [];
+    for (var fp = 0; fp < skus.length; fp++) {
+      fbmPlaceholders.push(['', '', '', '']); // N-Q empty until refresh
+    }
+    sheet.getRange(2, 14, skus.length, 4).setValues(fbmPlaceholders);
   }
 
   // ── FBM Formatting ──
@@ -228,48 +193,6 @@ function buildGorillaDataTab() {
     sheet.getRange(2, 14, skus.length, 2).setNumberFormat('#,##0');  // Available + Sales
     sheet.getRange(2, 16, skus.length, 1).setNumberFormat('#,##0.0'); // Velocity
     sheet.getRange(2, 17, skus.length, 1).setNumberFormat('$#,##0.00'); // Price
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // DIAGNOSTIC COLUMNS (R-S): Raw formulas WITHOUT IFERROR so actual errors
-  // (#NAME?, #ERROR!, etc.) are visible instead of silently becoming 0.
-  // ══════════════════════════════════════════════════════════════════════════
-
-  // Col R: Spacer
-  sheet.getRange(1, 18).setValue('').setBackground('#F5F5F5');
-
-  // FBA diagnostic header (col S = 19)
-  sheet.getRange(1, 19)
-       .setValue('FBA Test')
-       .setFontWeight('bold')
-       .setFontSize(9)
-       .setBackground('#FCE4EC')
-       .setBorder(true, true, true, true, false, false)
-       .setHorizontalAlignment('center');
-
-  // FBM diagnostic header (col T = 20)
-  sheet.getRange(1, 20)
-       .setValue('FBM Test')
-       .setFontWeight('bold')
-       .setFontSize(9)
-       .setBackground('#FCE4EC')
-       .setBorder(true, true, true, true, false, false)
-       .setHorizontalAlignment('center');
-
-  for (var di = 0; di < skus.length; di++) {
-    var diagRow  = di + 2;
-    var diagSkuCell = 'A' + diagRow;
-    var diagFbmCell = 'M' + diagRow;
-
-    // Col S: Raw FBA GORILLA_INVENTORY (no IFERROR) — shows actual error if broken
-    sheet.getRange(diagRow, 19).setFormula(
-      '=GORILLA_INVENTORY(' + sellerRef + ', ' + diagSkuCell + ', ' + mktRef + ', "fulfillable")'
-    );
-
-    // Col T: Raw FBM GORILLA_INVENTORY (no IFERROR) — only if FBM SKU is set
-    sheet.getRange(diagRow, 20).setFormula(
-      '=IF(' + diagFbmCell + '<>"", GORILLA_INVENTORY(' + sellerRef + ', ' + diagFbmCell + ', ' + mktRef + ', "fulfillable"), "no FBM SKU")'
-    );
   }
 
   // ── Column widths ──
@@ -282,16 +205,13 @@ function buildGorillaDataTab() {
   for (var fc = 14; fc <= 17; fc++) {
     sheet.setColumnWidth(fc, 130);
   }
-  sheet.setColumnWidth(18, 20);  // Spacer
-  sheet.setColumnWidth(19, 140); // FBA Test
-  sheet.setColumnWidth(20, 140); // FBM Test
 
-  // ── Header notes (ELI5 + Settings mapping) ──
+  // ── Header notes ──
   sheet.getRange(1, 1).setNote(
     'SKU = Your product ID in Amazon Seller Central.\n' +
-    'This tab auto-populates from Gorilla ROI.\n' +
-    'Requires the Gorilla ROI add-on connected to Seller Central.\n' +
-    'Do not edit these cells — edit values on the Settings tab instead.'
+    'This tab stores cached data from Gorilla ROI.\n' +
+    'Use Menu > Inventory Forecast > Refresh Gorilla Data to fetch latest values.\n\n' +
+    'Last Refreshed: never'
   );
   sheet.getRange(1, 2).setNote(
     'Available = Units that customers can buy right now.\n' +
@@ -387,33 +307,328 @@ function buildGorillaDataTab() {
     'Settings field: "FBM selling price"'
   );
 
-  // ── Diagnostic column notes ──
-  sheet.getRange(1, 19).setNote(
-    'FBA CONNECTION TEST\n' +
-    'This column uses the SAME Gorilla formula as col B (Available)\n' +
-    'but WITHOUT the IFERROR wrapper.\n\n' +
-    'If Gorilla is working: you\'ll see a number (same as col B).\n' +
-    'If broken, you\'ll see the actual error:\n' +
-    '  #NAME? → Gorilla ROI add-on not installed or not authorized\n' +
-    '  #ERROR! → Bad Seller ID, SKU, or marketplace\n' +
-    '  Loading... → Still computing (wait 30-60 seconds)\n\n' +
-    'This column is for diagnostics only — it does NOT feed into the forecast.'
+  sheet.setFrozenRows(1);
+  SpreadsheetApp.flush();
+}
+
+/**
+ * Staged Gorilla data fetch — processes one SKU at a time to avoid
+ * Google Sheets rate limits on custom function calls.
+ *
+ * For each SKU:
+ *   1. Writes GORILLA_* formulas to the Gorilla Data tab row
+ *   2. Flushes to trigger evaluation
+ *   3. Polls until formulas resolve (up to 30s per SKU)
+ *   4. Reads computed values and overwrites formulas with plain values
+ *   5. Pauses before processing the next SKU
+ *
+ * After all SKUs: updates "Last Refreshed" timestamp on cell A1 note.
+ *
+ * Safety: respects a 5-minute runtime limit. If the script is running
+ * close to the Apps Script 6-minute timeout, it stops early and tells
+ * the user to run again for remaining SKUs.
+ */
+function fetchGorillaDataStaged() {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(GORILLA_DATA_TAB_NAME);
+  if (!sheet) return;
+
+  var skus = getSkus();
+  if (skus.length === 0) return;
+
+  // Named range references used in formulas
+  var sellerRef = 'GLOBAL__GORILLA_SELLER_ID';
+  var mktRef    = 'GLOBAL__GORILLA_MARKETPLACE';
+  var lookRef   = 'GLOBAL__GORILLA_LOOKBACK_DAYS';
+
+  var lookbackRange = ss.getRangeByName('GLOBAL__GORILLA_LOOKBACK_DAYS');
+  var lookbackDays  = lookbackRange ? lookbackRange.getValue() : 30;
+  if (!lookbackDays || lookbackDays <= 0) lookbackDays = 30;
+
+  var totalStart = new Date().getTime();
+  var MAX_RUNTIME = 300000; // 5 minutes (1 min safety margin before Apps Script timeout)
+  var skusProcessed = 0;
+
+  for (var s = 0; s < skus.length; s++) {
+    // Safety: check if close to timeout
+    if (new Date().getTime() - totalStart > MAX_RUNTIME) {
+      ss.toast(
+        'Processed ' + skusProcessed + '/' + skus.length + ' SKUs before timeout.\n' +
+        'Run "Refresh Gorilla Data" again to fetch the remaining SKUs.',
+        'Gorilla ROI', 15
+      );
+      break;
+    }
+
+    var rowNum  = s + 2;
+    var skuCell = 'A' + rowNum;
+    var skuId   = skus[s].id;
+
+    ss.toast(
+      'Fetching data for ' + skuId + ' (' + (s + 1) + '/' + skus.length + ')...',
+      'Gorilla ROI', 60
+    );
+
+    // ── Write FBA Gorilla formulas for this SKU ──
+    var formulaCells = [];
+
+    // Cols B-H: GORILLA_INVENTORY per category
+    for (var ic = 0; ic < GORILLA_INVENTORY_CATS.length; ic++) {
+      var cat  = GORILLA_INVENTORY_CATS[ic];
+      var cell = sheet.getRange(rowNum, cat.col);
+      cell.setFormula(
+        '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuCell + ', ' + mktRef + ', "' + cat.category + '"), 0)'
+      );
+      formulaCells.push(cell);
+    }
+
+    // Col I: Sales Count (last N days)
+    var salesCell = sheet.getRange(rowNum, 9);
+    salesCell.setFormula(
+      '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + skuCell +
+      ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
+    );
+    formulaCells.push(salesCell);
+
+    // Col K: Selling Price
+    var priceCell = sheet.getRange(rowNum, 11);
+    priceCell.setFormula(
+      '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + skuCell + ', ' + mktRef + '), 0)'
+    );
+    formulaCells.push(priceCell);
+
+    // ── Write FBM Gorilla formulas if FBM SKU is configured ──
+    var fbmSkuVal = sheet.getRange(rowNum, 13).getDisplayValue();
+    var hasFbm    = fbmSkuVal && fbmSkuVal !== '';
+
+    if (hasFbm) {
+      var fbmSkuCell = 'M' + rowNum;
+
+      // Col N: FBM Available
+      var fbmAvailCell = sheet.getRange(rowNum, 14);
+      fbmAvailCell.setFormula(
+        '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + ', "fulfillable"), 0)'
+      );
+      formulaCells.push(fbmAvailCell);
+
+      // Col O: FBM Sales Count
+      var fbmSalesCell = sheet.getRange(rowNum, 15);
+      fbmSalesCell.setFormula(
+        '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + fbmSkuCell +
+        ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
+      );
+      formulaCells.push(fbmSalesCell);
+
+      // Col Q: FBM Selling Price
+      var fbmPriceCell = sheet.getRange(rowNum, 17);
+      fbmPriceCell.setFormula(
+        '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + '), 0)'
+      );
+      formulaCells.push(fbmPriceCell);
+    }
+
+    // Flush to trigger formula evaluation
+    SpreadsheetApp.flush();
+
+    // ── Poll until all formulas resolve (up to 30 seconds) ──
+    var maxWait  = 30000;
+    var interval = 3000;
+    var elapsed  = 0;
+
+    while (elapsed < maxWait) {
+      Utilities.sleep(interval);
+      SpreadsheetApp.flush();
+      elapsed += interval;
+
+      var allDone = true;
+      for (var fc = 0; fc < formulaCells.length; fc++) {
+        var dispVal = formulaCells[fc].getDisplayValue();
+        if (dispVal === '' || dispVal === 'Loading...' || dispVal === null) {
+          allDone = false;
+          break;
+        }
+      }
+      if (allDone) break;
+    }
+
+    // ── Snapshot: read computed values and overwrite formulas ──
+    for (var sc = 0; sc < formulaCells.length; sc++) {
+      var snapVal = formulaCells[sc].getValue();
+      // If the value is an error string or non-numeric, write 0
+      if (typeof snapVal !== 'number' || isNaN(snapVal)) {
+        snapVal = 0;
+      }
+      formulaCells[sc].setValue(snapVal);
+    }
+
+    // Col J: Daily Velocity (derived — sales / lookback days)
+    var salesVal = sheet.getRange(rowNum, 9).getValue();
+    sheet.getRange(rowNum, 10).setValue(
+      lookbackDays > 0 ? Math.round((salesVal / lookbackDays) * 10) / 10 : 0
+    );
+
+    // Col P: FBM Velocity (derived)
+    if (hasFbm) {
+      var fbmSalesVal = sheet.getRange(rowNum, 15).getValue();
+      sheet.getRange(rowNum, 16).setValue(
+        lookbackDays > 0 ? Math.round((fbmSalesVal / lookbackDays) * 10) / 10 : 0
+      );
+    }
+
+    SpreadsheetApp.flush();
+    skusProcessed++;
+
+    // Pause before next SKU to stay under Gorilla rate limits
+    if (s < skus.length - 1) {
+      Utilities.sleep(2000);
+    }
+  }
+
+  // ── Update "Last Refreshed" timestamp ──
+  var refreshTime = Utilities.formatDate(
+    new Date(), Session.getScriptTimeZone(), 'MMM d, yyyy h:mm a'
   );
-  sheet.getRange(1, 20).setNote(
-    'FBM CONNECTION TEST\n' +
-    'Same as FBA Test but using your FBM SKU ID.\n' +
-    'Shows "no FBM SKU" if no FBM SKU is configured for that product.\n\n' +
-    'If you see #NAME? or #ERROR! here, the same fix applies as the FBA test.'
+  sheet.getRange(1, 1).setNote(
+    'SKU = Your product ID in Amazon Seller Central.\n' +
+    'This tab stores cached data from Gorilla ROI.\n' +
+    'Use Menu > Inventory Forecast > Refresh Gorilla Data to fetch latest values.\n\n' +
+    'Last Refreshed: ' + refreshTime
   );
 
-  sheet.setFrozenRows(1);
+  if (skusProcessed === skus.length) {
+    ss.toast('All ' + skusProcessed + ' SKUs refreshed successfully!', 'Gorilla ROI', 5);
+  }
+}
+
+/**
+ * Fetches Gorilla data for a SINGLE SKU. Used by the save flow when a
+ * new FBM SKU is configured and the Gorilla Data tab needs FBM values.
+ *
+ * Same staged approach as fetchGorillaDataStaged() but for one SKU only.
+ *
+ * @param {number} skuIndex  The SKU's index in getSkus() (0-based)
+ * @param {boolean} fbmOnly  When true, only fetches FBM columns (N, O, Q)
+ */
+function fetchGorillaDataForSku(skuIndex, fbmOnly) {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(GORILLA_DATA_TAB_NAME);
+  if (!sheet) return;
+
+  var sellerRef = 'GLOBAL__GORILLA_SELLER_ID';
+  var mktRef    = 'GLOBAL__GORILLA_MARKETPLACE';
+  var lookRef   = 'GLOBAL__GORILLA_LOOKBACK_DAYS';
+
+  var lookbackRange = ss.getRangeByName('GLOBAL__GORILLA_LOOKBACK_DAYS');
+  var lookbackDays  = lookbackRange ? lookbackRange.getValue() : 30;
+  if (!lookbackDays || lookbackDays <= 0) lookbackDays = 30;
+
+  var rowNum  = skuIndex + 2;
+  var skuCell = 'A' + rowNum;
+  var formulaCells = [];
+
+  if (!fbmOnly) {
+    // FBA formulas
+    for (var ic = 0; ic < GORILLA_INVENTORY_CATS.length; ic++) {
+      var cat  = GORILLA_INVENTORY_CATS[ic];
+      var cell = sheet.getRange(rowNum, cat.col);
+      cell.setFormula(
+        '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuCell + ', ' + mktRef + ', "' + cat.category + '"), 0)'
+      );
+      formulaCells.push(cell);
+    }
+
+    var salesCell = sheet.getRange(rowNum, 9);
+    salesCell.setFormula(
+      '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + skuCell +
+      ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
+    );
+    formulaCells.push(salesCell);
+
+    var priceCell = sheet.getRange(rowNum, 11);
+    priceCell.setFormula(
+      '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + skuCell + ', ' + mktRef + '), 0)'
+    );
+    formulaCells.push(priceCell);
+  }
+
+  // FBM formulas
+  var fbmSkuVal = sheet.getRange(rowNum, 13).getDisplayValue();
+  if (fbmSkuVal && fbmSkuVal !== '') {
+    var fbmSkuCell = 'M' + rowNum;
+
+    var fbmAvailCell = sheet.getRange(rowNum, 14);
+    fbmAvailCell.setFormula(
+      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + ', "fulfillable"), 0)'
+    );
+    formulaCells.push(fbmAvailCell);
+
+    var fbmSalesCell = sheet.getRange(rowNum, 15);
+    fbmSalesCell.setFormula(
+      '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + fbmSkuCell +
+      ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
+    );
+    formulaCells.push(fbmSalesCell);
+
+    var fbmPriceCell = sheet.getRange(rowNum, 17);
+    fbmPriceCell.setFormula(
+      '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + '), 0)'
+    );
+    formulaCells.push(fbmPriceCell);
+  }
+
+  if (formulaCells.length === 0) return;
+
+  SpreadsheetApp.flush();
+
+  // Poll until resolved
+  var maxWait = 30000;
+  var interval = 3000;
+  var elapsed = 0;
+
+  while (elapsed < maxWait) {
+    Utilities.sleep(interval);
+    SpreadsheetApp.flush();
+    elapsed += interval;
+
+    var allDone = true;
+    for (var fc = 0; fc < formulaCells.length; fc++) {
+      var dispVal = formulaCells[fc].getDisplayValue();
+      if (dispVal === '' || dispVal === 'Loading...' || dispVal === null) {
+        allDone = false;
+        break;
+      }
+    }
+    if (allDone) break;
+  }
+
+  // Snapshot to values
+  for (var sc = 0; sc < formulaCells.length; sc++) {
+    var snapVal = formulaCells[sc].getValue();
+    if (typeof snapVal !== 'number' || isNaN(snapVal)) snapVal = 0;
+    formulaCells[sc].setValue(snapVal);
+  }
+
+  // Derived velocities
+  if (!fbmOnly) {
+    var salesVal = sheet.getRange(rowNum, 9).getValue();
+    sheet.getRange(rowNum, 10).setValue(
+      lookbackDays > 0 ? Math.round((salesVal / lookbackDays) * 10) / 10 : 0
+    );
+  }
+  if (fbmSkuVal && fbmSkuVal !== '') {
+    var fbmSalesVal = sheet.getRange(rowNum, 15).getValue();
+    sheet.getRange(rowNum, 16).setValue(
+      lookbackDays > 0 ? Math.round((fbmSalesVal / lookbackDays) * 10) / 10 : 0
+    );
+  }
+
   SpreadsheetApp.flush();
 }
 
 /**
  * Lightweight linking: sets IFERROR formulas on existing Settings named ranges
  * to point at the Gorilla Data tab. Only touches the fields in GORILLA_LINK_MAP
- * (7 fields × N SKUs), so it runs in seconds instead of minutes.
+ * (7 fields x N SKUs), so it runs in seconds instead of minutes.
  *
  * @param {boolean} force  When true, overwrites ALL Gorilla-linkable cells
  *                         (including manual overrides). Use when the user
@@ -432,6 +647,9 @@ function linkSettingsToGorilla(force) {
       warningKeys[SKU_INPUT_ROWS[w].key] = SKU_INPUT_ROWS[w].gorillaWarning;
     }
   }
+
+  // Collect velocity override cells for batch snapshotting at the end
+  var velocityOverrideCells = [];
 
   for (var i = 0; i < skus.length; i++) {
     var prefix    = namedRangePrefix(skus[i].id);
@@ -484,6 +702,8 @@ function linkSettingsToGorilla(force) {
                          ovrFormula.indexOf('GORILLA_') > -1)) {
         ovrCell.setBackground('#E8F0FE');
         ovrCell.setNote(ovrNote);
+        // Still collect for snapshotting (has live formula)
+        velocityOverrideCells.push(ovrCell);
         continue;
       }
 
@@ -497,6 +717,7 @@ function linkSettingsToGorilla(force) {
       ovrCell.setFormula(buildVelAutoCalcFormula(prefix, skus[i].id, ovr));
       ovrCell.setBackground('#E8F0FE');
       ovrCell.setNote(ovrNote);
+      velocityOverrideCells.push(ovrCell);
     }
 
     // Link FBM fields to Gorilla Data tab
@@ -532,7 +753,7 @@ function linkSettingsToGorilla(force) {
       var fbmOvrCell = ss.getRangeByName(prefix + '__' + fbmOvrKey);
       if (!fbmOvrCell) continue;
 
-      var fbmOvrNote = 'Auto-calculated from last year\'s FBA sales × FBM conversion rate.\n' +
+      var fbmOvrNote = 'Auto-calculated from last year\'s FBA sales \u00d7 FBM conversion rate.\n' +
         'Uses FBA sales (not FBM) because when FBA is in stock, FBA wins\n' +
         'the Buy Box and FBM sales are ~0 — not representative of FBM\n' +
         'demand during an FBA stockout.\n\n' +
@@ -545,6 +766,7 @@ function linkSettingsToGorilla(force) {
                             fbmOvrFormula.indexOf('GORILLA_') > -1)) {
         fbmOvrCell.setBackground('#E8F0FE');
         fbmOvrCell.setNote(fbmOvrNote);
+        velocityOverrideCells.push(fbmOvrCell);
         continue;
       }
 
@@ -556,6 +778,7 @@ function linkSettingsToGorilla(force) {
       fbmOvrCell.setFormula(buildFbmVelAutoCalcFormula(prefix, skus[i].id, fbmOvr));
       fbmOvrCell.setBackground('#E8F0FE');
       fbmOvrCell.setNote(fbmOvrNote);
+      velocityOverrideCells.push(fbmOvrCell);
     }
 
     // Default double-counting fields to 0 if empty, but respect manual overrides.
@@ -573,14 +796,64 @@ function linkSettingsToGorilla(force) {
   }
 
   SpreadsheetApp.flush();
+
+  // ── Snapshot velocity override formulas ──
+  // Wait for GORILLA_SALESCOUNT formulas to resolve, then convert to values.
+  // This prevents live Gorilla formulas from persisting on the Settings tab.
+  if (velocityOverrideCells.length > 0) {
+    // Filter to cells that actually have GORILLA_ formulas and whose dates are set
+    var liveCells = [];
+    for (var lc = 0; lc < velocityOverrideCells.length; lc++) {
+      var lcFormula = velocityOverrideCells[lc].getFormula();
+      if (lcFormula && lcFormula.indexOf('GORILLA_') > -1) {
+        liveCells.push(velocityOverrideCells[lc]);
+      }
+    }
+
+    if (liveCells.length > 0) {
+      ss.toast('Waiting for velocity override formulas...', 'Gorilla ROI', 45);
+
+      var maxWait  = 45000;
+      var interval = 3000;
+      var elapsed  = 0;
+
+      while (elapsed < maxWait) {
+        Utilities.sleep(interval);
+        SpreadsheetApp.flush();
+        elapsed += interval;
+
+        var allDone = true;
+        for (var vc = 0; vc < liveCells.length; vc++) {
+          var vcVal = liveCells[vc].getValue();
+          if (vcVal === '' || vcVal === null || vcVal === undefined ||
+              (typeof vcVal === 'string' && (vcVal === 'Loading...' || vcVal.charAt(0) === '#'))) {
+            allDone = false;
+            break;
+          }
+        }
+        if (allDone) break;
+      }
+
+      // Snapshot: overwrite formulas with computed values
+      for (var sv = 0; sv < liveCells.length; sv++) {
+        var svVal = liveCells[sv].getValue();
+        if (typeof svVal === 'number' && !isNaN(svVal)) {
+          liveCells[sv].setValue(svVal);
+        }
+        // If the formula returned "" (dates not set), leave it as "" (no-op)
+      }
+
+      SpreadsheetApp.flush();
+    }
+  }
 }
 
 /**
  * Links just the FBM fields for a single SKU to the Gorilla Data tab.
  * Called automatically when a user saves an FBM SKU ID from the sidebar.
  *
- * This is a targeted version of the FBM portion of linkSettingsToGorilla()
- * that runs fast (only touches 3 cells + velocity overrides for one SKU).
+ * Also triggers a targeted Gorilla Data fetch for this SKU's FBM columns
+ * so data is available immediately (not just zeros).
  *
  * @param {string} skuId  The SKU whose FBM fields should be linked
  */
@@ -600,6 +873,9 @@ function linkFbmForSku(skuId) {
 
   var prefix     = namedRangePrefix(skuId);
   var gorillaRow = skuIndex + 2;
+
+  // Fetch FBM data from Gorilla for this SKU (staged: write formula → wait → snapshot)
+  fetchGorillaDataForSku(skuIndex, true);
 
   // Link FBM data fields (FBM_ONHAND, FBM_DAILY_VELOCITY, FBM_SELLING_PRICE)
   for (var fbmKey in GORILLA_FBM_LINK_MAP) {
@@ -638,7 +914,7 @@ function linkFbmForSku(skuId) {
 
     ovrCell.setFormula(buildFbmVelAutoCalcFormula(prefix, skuId, ovr));
     ovrCell.setBackground('#E8F0FE');
-    ovrCell.setNote('Auto-calculated from last year\'s FBA sales × FBM conversion rate.\nUses FBA sales because FBM sees ~0 sales when FBA has the Buy Box.\nType a number to manually override.');
+    ovrCell.setNote('Auto-calculated from last year\'s FBA sales \u00d7 FBM conversion rate.\nUses FBA sales because FBM sees ~0 sales when FBA has the Buy Box.\nType a number to manually override.');
   }
 
   SpreadsheetApp.flush();
