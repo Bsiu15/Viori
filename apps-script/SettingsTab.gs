@@ -142,27 +142,33 @@ function buildVelAutoCalcFormula(prefix, skuId, overrideNum) {
 
 /**
  * Builds a Gorilla auto-calc formula for an FBM velocity override VALUE field.
- * Like buildVelAutoCalcFormula but uses the FBM SKU ID from the Settings tab
- * named range instead of a hardcoded SKU string.
+ * Uses last year's FBA sales (not FBM) because when FBA was in stock,
+ * FBA wins the Buy Box and FBM sales are ~0. Multiplies by the FBM
+ * conversion rate to estimate what FBM would sell during an FBA stockout.
  *
  * Returns "" when the override START/END dates or FBM SKU ID are empty.
  *
  * @param {string} prefix      Named-range prefix, e.g. "SB_HW_100W_FBA"
+ * @param {string} skuId       FBA SKU id, e.g. "SB-HW-100W-FBA"
  * @param {number} overrideNum 1, 2, or 3
  * @return {string} A Google Sheets formula string
  */
-function buildFbmVelAutoCalcFormula(prefix, overrideNum) {
+function buildFbmVelAutoCalcFormula(prefix, skuId, overrideNum) {
   var startRef = prefix + '__FBM_VEL_OVERRIDE_' + overrideNum + '_START';
   var endRef   = prefix + '__FBM_VEL_OVERRIDE_' + overrideNum + '_END';
   var skuRef   = prefix + '__FBM_SKU_ID';
+  var convRef  = prefix + '__FBM_CONVERSION_RATE';
 
+  // Pull last year's FBA sales (using FBA SKU ID, not FBM), divide by days,
+  // then multiply by FBM conversion rate to estimate FBM velocity.
   return '=IF(AND(' + startRef + '<>"", ' + endRef + '<>"", ' + skuRef + '<>""), ' +
     'IFERROR(' +
-      'GORILLA_SALESCOUNT(GLOBAL__GORILLA_SELLER_ID, "Custom", GLOBAL__GORILLA_MARKETPLACE, ' + skuRef + ', ' +
+      'GORILLA_SALESCOUNT(GLOBAL__GORILLA_SELLER_ID, "Custom", GLOBAL__GORILLA_MARKETPLACE, "' + skuId + '", ' +
         '"Shipped", "Exclude", ' +
         'TEXT(' + startRef + ' - 365, "yyyy-mm-dd"), ' +
         'TEXT(' + endRef + ' - 365, "yyyy-mm-dd")) ' +
       '/ (' + endRef + ' - ' + startRef + ' + 1)' +
+      ' * IF(AND(' + convRef + '<>"", ' + convRef + '>0), ' + convRef + ', 100) / 100' +
     ', ""), "")';
 }
 
@@ -428,8 +434,8 @@ function buildSettingsTab() {
         valueCell.setFormula(buildVelAutoCalcFormula(prefix, sku.id, input.velOverrideNum));
         isGorillaLinked = true;
       } else if (savedGorillaSellerId && input.fbmVelOverrideNum) {
-        // Auto-calculate FBM velocity from last year's sales using FBM SKU ID
-        valueCell.setFormula(buildFbmVelAutoCalcFormula(prefix, input.fbmVelOverrideNum));
+        // Auto-calculate FBM velocity from last year's FBA sales × FBM conversion rate
+        valueCell.setFormula(buildFbmVelAutoCalcFormula(prefix, sku.id, input.fbmVelOverrideNum));
         isGorillaLinked = true;
       } else if (input.defaultVal !== '' && input.defaultVal !== null) {
         valueCell.setValue(input.defaultVal);

@@ -532,9 +532,10 @@ function linkSettingsToGorilla(force) {
       var fbmOvrCell = ss.getRangeByName(prefix + '__' + fbmOvrKey);
       if (!fbmOvrCell) continue;
 
-      var fbmOvrNote = 'Auto-calculated from Gorilla ROI historical data using your FBM SKU ID.\n' +
-        'Pulls last year\'s shipped sales for the same date range\n' +
-        'and divides by the number of days to get daily FBM velocity.\n\n' +
+      var fbmOvrNote = 'Auto-calculated from last year\'s FBA sales × FBM conversion rate.\n' +
+        'Uses FBA sales (not FBM) because when FBA is in stock, FBA wins\n' +
+        'the Buy Box and FBM sales are ~0 — not representative of FBM\n' +
+        'demand during an FBA stockout.\n\n' +
         'Enter FBM SKU ID and override dates — this value fills in automatically.\n' +
         'Type a number to manually override.';
 
@@ -552,7 +553,7 @@ function linkSettingsToGorilla(force) {
         if (fbmOvrVal !== '' && fbmOvrVal !== 0 && fbmOvrVal !== null && fbmOvrVal !== undefined) continue;
       }
 
-      fbmOvrCell.setFormula(buildFbmVelAutoCalcFormula(prefix, fbmOvr));
+      fbmOvrCell.setFormula(buildFbmVelAutoCalcFormula(prefix, skus[i].id, fbmOvr));
       fbmOvrCell.setBackground('#E8F0FE');
       fbmOvrCell.setNote(fbmOvrNote);
     }
@@ -635,9 +636,9 @@ function linkFbmForSku(skuId) {
       if (ovrVal !== '' && ovrVal !== 0 && ovrVal !== null && ovrVal !== undefined) continue;
     }
 
-    ovrCell.setFormula(buildFbmVelAutoCalcFormula(prefix, ovr));
+    ovrCell.setFormula(buildFbmVelAutoCalcFormula(prefix, skuId, ovr));
     ovrCell.setBackground('#E8F0FE');
-    ovrCell.setNote('Auto-calculated from Gorilla ROI historical data using your FBM SKU ID.\nType a number to manually override.');
+    ovrCell.setNote('Auto-calculated from last year\'s FBA sales × FBM conversion rate.\nUses FBA sales because FBM sees ~0 sales when FBA has the Buy Box.\nType a number to manually override.');
   }
 
   SpreadsheetApp.flush();
