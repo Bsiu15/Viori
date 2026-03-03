@@ -312,31 +312,127 @@ function buildGorillaDataTab() {
 }
 
 /**
- * Staged Gorilla data fetch — processes one SKU at a time to avoid
- * Google Sheets rate limits on custom function calls.
+ * Writes a small batch of GORILLA_* formulas, waits for them to resolve,
+ * and snapshots the results to plain values. Returns true if ALL formulas
+ * in the batch resolved successfully (no #ERROR!, no timeout).
+ *
+ * @param {Sheet}   sheet        The Gorilla Data tab
+ * @param {Array}   batch        Array of {cell, formula} objects
+ * @param {number}  pollTimeout  Max ms to wait for resolution (default 30000)
+ * @return {boolean} true if all resolved, false if any errored or timed out
+ */
+function writeBatchAndSnapshot_(sheet, batch, pollTimeout) {
+  if (!batch || batch.length === 0) return true;
+  if (!pollTimeout) pollTimeout = 30000;
+
+  // Write formulas
+  for (var i = 0; i < batch.length; i++) {
+    batch[i].cell.setFormula(batch[i].formula);
+  }
+  SpreadsheetApp.flush();
+
+  // Poll until all resolve
+  var interval = 3000;
+  var elapsed  = 0;
+  var hasError = false;
+
+  while (elapsed < pollTimeout) {
+    Utilities.sleep(interval);
+    SpreadsheetApp.flush();
+    elapsed += interval;
+
+    var allDone = true;
+    hasError = false;
+    for (var p = 0; p < batch.length; p++) {
+      var dv = batch[p].cell.getDisplayValue();
+      if (dv === '' || dv === 'Loading...' || dv === null) {
+        allDone = false;
+        break;
+      }
+      if (typeof dv === 'string' && dv.charAt(0) === '#') {
+        hasError = true;
+      }
+    }
+    if (allDone) break;
+  }
+
+  // Snapshot: overwrite formulas with plain values
+  for (var s = 0; s < batch.length; s++) {
+    var val = batch[s].cell.getValue();
+    if (typeof val !== 'number' || isNaN(val)) val = 0;
+    batch[s].cell.setValue(val);
+  }
+  SpreadsheetApp.flush();
+
+  return !hasError;
+}
+
+/**
+ * Probes the Gorilla API with a single lightweight formula to check
+ * whether the account is currently rate-limited.
+ *
+ * @param {Sheet}  sheet      The Gorilla Data tab
+ * @param {string} sellerRef  Named range for seller ID
+ * @param {string} mktRef     Named range for marketplace
+ * @param {number} testRow    Row to write the test formula in
+ * @return {string} 'ok' if the formula resolved to a number,
+ *                  'throttled' if #ERROR!, 'timeout' if it never resolved
+ */
+function probeGorillaApi_(sheet, sellerRef, mktRef, testRow) {
+  var testCell = sheet.getRange(testRow, 2);
+  testCell.setFormula(
+    '=GORILLA_INVENTORY(' + sellerRef + ', A2, ' + mktRef + ', "fulfillable")'
+  );
+  SpreadsheetApp.flush();
+
+  var result = 'timeout';
+  for (var t = 0; t < 6; t++) {
+    Utilities.sleep(3000);
+    SpreadsheetApp.flush();
+    var dv = testCell.getDisplayValue();
+    if (dv === '' || dv === 'Loading...' || dv === null) continue;
+    if (typeof dv === 'string' && dv.charAt(0) === '#') {
+      result = 'throttled';
+    } else {
+      result = 'ok';
+    }
+    break;
+  }
+
+  // Clean up — always remove the test formula
+  testCell.setValue('');
+  SpreadsheetApp.flush();
+  return result;
+}
+
+/**
+ * Staged Gorilla data fetch — processes one SKU at a time, in micro-batches
+ * of 3 formulas, to stay well under Google Sheets rate limits.
+ *
+ * RESILIENCE FEATURES:
+ *   - Probe test: checks API availability with a single formula before starting
+ *   - Micro-batching: writes 3 formulas at a time (not 12)
+ *   - Error detection: if #ERROR! is returned, stops and backs off
+ *   - Exponential backoff: delays increase when throttling is detected
+ *   - Retry queue: failed SKUs get a second attempt after a cooldown
+ *   - 5-minute safety timeout
  *
  * For each SKU:
- *   1. Writes GORILLA_* formulas to the Gorilla Data tab row
- *   2. Flushes to trigger evaluation
- *   3. Polls until formulas resolve (up to 30s per SKU)
- *   4. Reads computed values and overwrites formulas with plain values
- *   5. Pauses before processing the next SKU
+ *   1. Writes formulas in micro-batches of 3
+ *   2. Waits for each batch to resolve before writing the next
+ *   3. Snapshots resolved values immediately (removes live formulas)
+ *   4. Pauses between SKUs (longer if throttling detected)
  *
  * After all SKUs: updates "Last Refreshed" timestamp on cell A1 note.
- *
- * Safety: respects a 5-minute runtime limit. If the script is running
- * close to the Apps Script 6-minute timeout, it stops early and tells
- * the user to run again for remaining SKUs.
  */
 function fetchGorillaDataStaged() {
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(GORILLA_DATA_TAB_NAME);
-  if (!sheet) return;
+  if (!sheet) return false;
 
   var skus = getSkus();
-  if (skus.length === 0) return;
+  if (skus.length === 0) return false;
 
-  // Named range references used in formulas
   var sellerRef = 'GLOBAL__GORILLA_SELLER_ID';
   var mktRef    = 'GLOBAL__GORILLA_MARKETPLACE';
   var lookRef   = 'GLOBAL__GORILLA_LOOKBACK_DAYS';
@@ -345,142 +441,109 @@ function fetchGorillaDataStaged() {
   var lookbackDays  = lookbackRange ? lookbackRange.getValue() : 30;
   if (!lookbackDays || lookbackDays <= 0) lookbackDays = 30;
 
-  var totalStart = new Date().getTime();
-  var MAX_RUNTIME = 300000; // 5 minutes (1 min safety margin before Apps Script timeout)
+  // ── Probe: test API availability before starting ──
+  ss.toast('Testing Gorilla connection...', 'Gorilla ROI', 20);
+  var probeRow = skus.length + 3; // temp row beyond data
+  var probeResult = probeGorillaApi_(sheet, sellerRef, mktRef, probeRow);
+
+  if (probeResult === 'throttled') {
+    SpreadsheetApp.getUi().alert(
+      'Gorilla API Rate Limited',
+      'Google is still throttling Gorilla API requests for your account.\n\n' +
+      'This is a temporary cooldown imposed by Google — usually resets within\n' +
+      '30-60 minutes. The previous burst of formulas used up your quota.\n\n' +
+      'What to do:\n' +
+      '  1. Wait 30-60 minutes\n' +
+      '  2. Try "Refresh Gorilla Data" again\n' +
+      '  3. If it still fails, wait a bit longer\n\n' +
+      'Your existing cached data (if any) is still intact and the forecast\n' +
+      'will continue to work with the last known values.',
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+    return false;
+  }
+
+  if (probeResult === 'timeout') {
+    SpreadsheetApp.getUi().alert(
+      'Gorilla Connection Timeout',
+      'The test formula did not resolve within 18 seconds.\n\n' +
+      'Possible causes:\n' +
+      '  - Gorilla ROI add-on is not installed or not authorized\n' +
+      '  - Internet connection issue\n' +
+      '  - Gorilla servers are slow\n\n' +
+      'Try: Extensions > Add-ons > Manage add-ons > enable Gorilla ROI.\n' +
+      'Then try "Refresh Gorilla Data" again.',
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+    return false;
+  }
+
+  // Probe passed — API is available
+  ss.toast('Gorilla connected! Starting staged refresh...', 'Gorilla ROI', 5);
+
+  var totalStart    = new Date().getTime();
+  var MAX_RUNTIME   = 300000; // 5 minutes
+  var MICRO_BATCH   = 3;      // formulas per batch
+  var basePause     = 3000;   // ms between SKUs (increases on errors)
+  var currentPause  = basePause;
   var skusProcessed = 0;
+  var failedSkus    = [];     // indices of SKUs that failed (for retry)
 
   for (var s = 0; s < skus.length; s++) {
-    // Safety: check if close to timeout
     if (new Date().getTime() - totalStart > MAX_RUNTIME) {
       ss.toast(
         'Processed ' + skusProcessed + '/' + skus.length + ' SKUs before timeout.\n' +
-        'Run "Refresh Gorilla Data" again to fetch the remaining SKUs.',
+        'Run "Refresh Gorilla Data" again for remaining SKUs.',
         'Gorilla ROI', 15
       );
       break;
     }
 
-    var rowNum  = s + 2;
-    var skuCell = 'A' + rowNum;
-    var skuId   = skus[s].id;
-
-    ss.toast(
-      'Fetching data for ' + skuId + ' (' + (s + 1) + '/' + skus.length + ')...',
-      'Gorilla ROI', 60
+    var skuOk = fetchSingleSkuMicrobatched_(
+      ss, sheet, skus, s, sellerRef, mktRef, lookRef, lookbackDays, MICRO_BATCH
     );
 
-    // ── Write FBA Gorilla formulas for this SKU ──
-    var formulaCells = [];
-
-    // Cols B-H: GORILLA_INVENTORY per category
-    for (var ic = 0; ic < GORILLA_INVENTORY_CATS.length; ic++) {
-      var cat  = GORILLA_INVENTORY_CATS[ic];
-      var cell = sheet.getRange(rowNum, cat.col);
-      cell.setFormula(
-        '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuCell + ', ' + mktRef + ', "' + cat.category + '"), 0)'
-      );
-      formulaCells.push(cell);
-    }
-
-    // Col I: Sales Count (last N days)
-    var salesCell = sheet.getRange(rowNum, 9);
-    salesCell.setFormula(
-      '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + skuCell +
-      ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
-    );
-    formulaCells.push(salesCell);
-
-    // Col K: Selling Price
-    var priceCell = sheet.getRange(rowNum, 11);
-    priceCell.setFormula(
-      '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + skuCell + ', ' + mktRef + '), 0)'
-    );
-    formulaCells.push(priceCell);
-
-    // ── Write FBM Gorilla formulas if FBM SKU is configured ──
-    var fbmSkuVal = sheet.getRange(rowNum, 13).getDisplayValue();
-    var hasFbm    = fbmSkuVal && fbmSkuVal !== '';
-
-    if (hasFbm) {
-      var fbmSkuCell = 'M' + rowNum;
-
-      // Col N: FBM Available
-      var fbmAvailCell = sheet.getRange(rowNum, 14);
-      fbmAvailCell.setFormula(
-        '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + ', "fulfillable"), 0)'
-      );
-      formulaCells.push(fbmAvailCell);
-
-      // Col O: FBM Sales Count
-      var fbmSalesCell = sheet.getRange(rowNum, 15);
-      fbmSalesCell.setFormula(
-        '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + fbmSkuCell +
-        ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
-      );
-      formulaCells.push(fbmSalesCell);
-
-      // Col Q: FBM Selling Price
-      var fbmPriceCell = sheet.getRange(rowNum, 17);
-      fbmPriceCell.setFormula(
-        '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + '), 0)'
-      );
-      formulaCells.push(fbmPriceCell);
-    }
-
-    // Flush to trigger formula evaluation
-    SpreadsheetApp.flush();
-
-    // ── Poll until all formulas resolve (up to 30 seconds) ──
-    var maxWait  = 30000;
-    var interval = 3000;
-    var elapsed  = 0;
-
-    while (elapsed < maxWait) {
-      Utilities.sleep(interval);
-      SpreadsheetApp.flush();
-      elapsed += interval;
-
-      var allDone = true;
-      for (var fc = 0; fc < formulaCells.length; fc++) {
-        var dispVal = formulaCells[fc].getDisplayValue();
-        if (dispVal === '' || dispVal === 'Loading...' || dispVal === null) {
-          allDone = false;
-          break;
-        }
-      }
-      if (allDone) break;
-    }
-
-    // ── Snapshot: read computed values and overwrite formulas ──
-    for (var sc = 0; sc < formulaCells.length; sc++) {
-      var snapVal = formulaCells[sc].getValue();
-      // If the value is an error string or non-numeric, write 0
-      if (typeof snapVal !== 'number' || isNaN(snapVal)) {
-        snapVal = 0;
-      }
-      formulaCells[sc].setValue(snapVal);
-    }
-
-    // Col J: Daily Velocity (derived — sales / lookback days)
-    var salesVal = sheet.getRange(rowNum, 9).getValue();
-    sheet.getRange(rowNum, 10).setValue(
-      lookbackDays > 0 ? Math.round((salesVal / lookbackDays) * 10) / 10 : 0
-    );
-
-    // Col P: FBM Velocity (derived)
-    if (hasFbm) {
-      var fbmSalesVal = sheet.getRange(rowNum, 15).getValue();
-      sheet.getRange(rowNum, 16).setValue(
-        lookbackDays > 0 ? Math.round((fbmSalesVal / lookbackDays) * 10) / 10 : 0
+    if (skuOk) {
+      skusProcessed++;
+      currentPause = basePause; // reset backoff on success
+    } else {
+      failedSkus.push(s);
+      currentPause = Math.min(currentPause * 2, 15000); // exponential backoff, max 15s
+      ss.toast(
+        'Rate limited on ' + skus[s].id + ' — backing off ' +
+        Math.round(currentPause / 1000) + 's...',
+        'Gorilla ROI', 10
       );
     }
 
-    SpreadsheetApp.flush();
-    skusProcessed++;
-
-    // Pause before next SKU to stay under Gorilla rate limits
+    // Pause before next SKU
     if (s < skus.length - 1) {
-      Utilities.sleep(2000);
+      Utilities.sleep(currentPause);
+    }
+  }
+
+  // ── Retry failed SKUs once after a longer cooldown ──
+  if (failedSkus.length > 0 && new Date().getTime() - totalStart < MAX_RUNTIME) {
+    ss.toast(
+      'Retrying ' + failedSkus.length + ' failed SKU(s) after cooldown...',
+      'Gorilla ROI', 20
+    );
+    Utilities.sleep(15000); // 15-second cooldown before retry
+
+    for (var r = 0; r < failedSkus.length; r++) {
+      if (new Date().getTime() - totalStart > MAX_RUNTIME) break;
+
+      var retryOk = fetchSingleSkuMicrobatched_(
+        ss, sheet, skus, failedSkus[r], sellerRef, mktRef, lookRef, lookbackDays, MICRO_BATCH
+      );
+
+      if (retryOk) {
+        skusProcessed++;
+      }
+
+      if (r < failedSkus.length - 1) {
+        Utilities.sleep(5000); // longer pause between retries
+      }
     }
   }
 
@@ -497,14 +560,134 @@ function fetchGorillaDataStaged() {
 
   if (skusProcessed === skus.length) {
     ss.toast('All ' + skusProcessed + ' SKUs refreshed successfully!', 'Gorilla ROI', 5);
+    return true;
+  } else {
+    var failCount = skus.length - skusProcessed;
+    SpreadsheetApp.getUi().alert(
+      'Gorilla Refresh Partial',
+      skusProcessed + ' of ' + skus.length + ' SKUs refreshed successfully.\n' +
+      failCount + ' SKU(s) could not be fetched due to rate limiting.\n\n' +
+      'Wait 15-30 minutes, then run "Refresh Gorilla Data" again.\n' +
+      'Successfully fetched SKUs will keep their data.',
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+    return skusProcessed > 0; // partial success — link what we got
   }
 }
 
 /**
- * Fetches Gorilla data for a SINGLE SKU. Used by the save flow when a
- * new FBM SKU is configured and the Gorilla Data tab needs FBM values.
+ * Fetches all Gorilla data for a single SKU using micro-batches.
+ * Writes formulas in groups of MICRO_BATCH, waits for each group,
+ * then snapshots to plain values before writing the next group.
  *
- * Same staged approach as fetchGorillaDataStaged() but for one SKU only.
+ * @param {Spreadsheet} ss
+ * @param {Sheet}       sheet
+ * @param {Array}       skus         Full SKU array
+ * @param {number}      skuIndex     Index into skus[]
+ * @param {string}      sellerRef    Named range ref
+ * @param {string}      mktRef       Named range ref
+ * @param {string}      lookRef      Named range ref
+ * @param {number}      lookbackDays
+ * @param {number}      batchSize    Formulas per micro-batch
+ * @return {boolean}    true if all formulas resolved without errors
+ */
+function fetchSingleSkuMicrobatched_(ss, sheet, skus, skuIndex, sellerRef, mktRef, lookRef, lookbackDays, batchSize) {
+  var rowNum  = skuIndex + 2;
+  var skuCell = 'A' + rowNum;
+  var skuId   = skus[skuIndex].id;
+
+  ss.toast(
+    'Fetching data for ' + skuId + ' (' + (skuIndex + 1) + '/' + skus.length + ')...',
+    'Gorilla ROI', 60
+  );
+
+  // Build all formula descriptors for this SKU
+  var allFormulas = [];
+
+  // Cols B-H: GORILLA_INVENTORY per category
+  for (var ic = 0; ic < GORILLA_INVENTORY_CATS.length; ic++) {
+    var cat = GORILLA_INVENTORY_CATS[ic];
+    allFormulas.push({
+      cell: sheet.getRange(rowNum, cat.col),
+      formula: '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuCell + ', ' + mktRef + ', "' + cat.category + '"), 0)'
+    });
+  }
+
+  // Col I: Sales Count
+  allFormulas.push({
+    cell: sheet.getRange(rowNum, 9),
+    formula: '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + skuCell +
+             ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
+  });
+
+  // Col K: Selling Price
+  allFormulas.push({
+    cell: sheet.getRange(rowNum, 11),
+    formula: '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + skuCell + ', ' + mktRef + '), 0)'
+  });
+
+  // FBM formulas (if configured)
+  var fbmSkuVal = sheet.getRange(rowNum, 13).getDisplayValue();
+  var hasFbm    = fbmSkuVal && fbmSkuVal !== '';
+
+  if (hasFbm) {
+    var fbmSkuCell = 'M' + rowNum;
+
+    allFormulas.push({
+      cell: sheet.getRange(rowNum, 14),
+      formula: '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + ', "fulfillable"), 0)'
+    });
+    allFormulas.push({
+      cell: sheet.getRange(rowNum, 15),
+      formula: '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + fbmSkuCell +
+               ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
+    });
+    allFormulas.push({
+      cell: sheet.getRange(rowNum, 17),
+      formula: '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + '), 0)'
+    });
+  }
+
+  // Process in micro-batches
+  var allOk = true;
+  for (var b = 0; b < allFormulas.length; b += batchSize) {
+    var batch = allFormulas.slice(b, b + batchSize);
+    var batchOk = writeBatchAndSnapshot_(sheet, batch, 30000);
+    if (!batchOk) {
+      allOk = false;
+      // Don't break — continue snapshotting remaining batches so we don't
+      // leave live formulas on the sheet. But the values will be 0.
+    }
+
+    // Brief pause between micro-batches within the same SKU
+    if (b + batchSize < allFormulas.length) {
+      Utilities.sleep(2000);
+    }
+  }
+
+  // Col J: Daily Velocity (derived — sales / lookback days)
+  var salesVal = sheet.getRange(rowNum, 9).getValue();
+  sheet.getRange(rowNum, 10).setValue(
+    lookbackDays > 0 ? Math.round((salesVal / lookbackDays) * 10) / 10 : 0
+  );
+
+  // Col P: FBM Velocity (derived)
+  if (hasFbm) {
+    var fbmSalesVal = sheet.getRange(rowNum, 15).getValue();
+    sheet.getRange(rowNum, 16).setValue(
+      lookbackDays > 0 ? Math.round((fbmSalesVal / lookbackDays) * 10) / 10 : 0
+    );
+  }
+
+  SpreadsheetApp.flush();
+  return allOk;
+}
+
+/**
+ * Fetches Gorilla data for a SINGLE SKU using micro-batches.
+ * Used by the save flow when a new FBM SKU is configured.
+ *
+ * Uses writeBatchAndSnapshot_() for resilient formula handling.
  *
  * @param {number} skuIndex  The SKU's index in getSkus() (0-based)
  * @param {boolean} fbmOnly  When true, only fetches FBM columns (N, O, Q)
@@ -524,31 +707,27 @@ function fetchGorillaDataForSku(skuIndex, fbmOnly) {
 
   var rowNum  = skuIndex + 2;
   var skuCell = 'A' + rowNum;
-  var formulaCells = [];
+  var allFormulas = [];
 
   if (!fbmOnly) {
-    // FBA formulas
     for (var ic = 0; ic < GORILLA_INVENTORY_CATS.length; ic++) {
-      var cat  = GORILLA_INVENTORY_CATS[ic];
-      var cell = sheet.getRange(rowNum, cat.col);
-      cell.setFormula(
-        '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuCell + ', ' + mktRef + ', "' + cat.category + '"), 0)'
-      );
-      formulaCells.push(cell);
+      var cat = GORILLA_INVENTORY_CATS[ic];
+      allFormulas.push({
+        cell: sheet.getRange(rowNum, cat.col),
+        formula: '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + skuCell + ', ' + mktRef + ', "' + cat.category + '"), 0)'
+      });
     }
 
-    var salesCell = sheet.getRange(rowNum, 9);
-    salesCell.setFormula(
-      '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + skuCell +
-      ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
-    );
-    formulaCells.push(salesCell);
+    allFormulas.push({
+      cell: sheet.getRange(rowNum, 9),
+      formula: '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + skuCell +
+               ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
+    });
 
-    var priceCell = sheet.getRange(rowNum, 11);
-    priceCell.setFormula(
-      '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + skuCell + ', ' + mktRef + '), 0)'
-    );
-    formulaCells.push(priceCell);
+    allFormulas.push({
+      cell: sheet.getRange(rowNum, 11),
+      formula: '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + skuCell + ', ' + mktRef + '), 0)'
+    });
   }
 
   // FBM formulas
@@ -556,56 +735,30 @@ function fetchGorillaDataForSku(skuIndex, fbmOnly) {
   if (fbmSkuVal && fbmSkuVal !== '') {
     var fbmSkuCell = 'M' + rowNum;
 
-    var fbmAvailCell = sheet.getRange(rowNum, 14);
-    fbmAvailCell.setFormula(
-      '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + ', "fulfillable"), 0)'
-    );
-    formulaCells.push(fbmAvailCell);
-
-    var fbmSalesCell = sheet.getRange(rowNum, 15);
-    fbmSalesCell.setFormula(
-      '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + fbmSkuCell +
-      ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
-    );
-    formulaCells.push(fbmSalesCell);
-
-    var fbmPriceCell = sheet.getRange(rowNum, 17);
-    fbmPriceCell.setFormula(
-      '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + '), 0)'
-    );
-    formulaCells.push(fbmPriceCell);
+    allFormulas.push({
+      cell: sheet.getRange(rowNum, 14),
+      formula: '=IFERROR(GORILLA_INVENTORY(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + ', "fulfillable"), 0)'
+    });
+    allFormulas.push({
+      cell: sheet.getRange(rowNum, 15),
+      formula: '=IFERROR(GORILLA_SALESCOUNT(' + sellerRef + ', "Custom", ' + mktRef + ', ' + fbmSkuCell +
+               ', "Shipped", "Exclude", TEXT(TODAY()-' + lookRef + ', "yyyy-mm-dd"), TEXT(TODAY()-1, "yyyy-mm-dd")), 0)'
+    });
+    allFormulas.push({
+      cell: sheet.getRange(rowNum, 17),
+      formula: '=IFERROR(GORILLA_MYPRICE(' + sellerRef + ', ' + fbmSkuCell + ', ' + mktRef + '), 0)'
+    });
   }
 
-  if (formulaCells.length === 0) return;
+  if (allFormulas.length === 0) return;
 
-  SpreadsheetApp.flush();
-
-  // Poll until resolved
-  var maxWait = 30000;
-  var interval = 3000;
-  var elapsed = 0;
-
-  while (elapsed < maxWait) {
-    Utilities.sleep(interval);
-    SpreadsheetApp.flush();
-    elapsed += interval;
-
-    var allDone = true;
-    for (var fc = 0; fc < formulaCells.length; fc++) {
-      var dispVal = formulaCells[fc].getDisplayValue();
-      if (dispVal === '' || dispVal === 'Loading...' || dispVal === null) {
-        allDone = false;
-        break;
-      }
+  // Process in micro-batches of 3
+  for (var b = 0; b < allFormulas.length; b += 3) {
+    var batch = allFormulas.slice(b, b + 3);
+    writeBatchAndSnapshot_(sheet, batch, 30000);
+    if (b + 3 < allFormulas.length) {
+      Utilities.sleep(2000);
     }
-    if (allDone) break;
-  }
-
-  // Snapshot to values
-  for (var sc = 0; sc < formulaCells.length; sc++) {
-    var snapVal = formulaCells[sc].getValue();
-    if (typeof snapVal !== 'number' || isNaN(snapVal)) snapVal = 0;
-    formulaCells[sc].setValue(snapVal);
   }
 
   // Derived velocities

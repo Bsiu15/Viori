@@ -513,17 +513,18 @@ function refreshGorillaData() {
   // Step 1: Build the tab structure (headers, SKU IDs, placeholder values — no formulas)
   buildGorillaDataTab();
 
-  // Step 2: Staged fetch — one SKU at a time to avoid rate limits
-  fetchGorillaDataStaged();
+  // Step 2: Staged fetch — one SKU at a time, micro-batched, with probe + backoff
+  var fetchOk = fetchGorillaDataStaged();
 
   // Step 3: Link Settings cells to the cached Gorilla Data values
-  // force=true to overwrite stale values
-  linkSettingsToGorilla(true);
-
-  ss.toast(
-    'Gorilla Data refreshed! Run "Recalculate All" to update the forecast.',
-    'Done', 10
-  );
+  // Only proceed if fetch succeeded (fully or partially)
+  if (fetchOk) {
+    linkSettingsToGorilla(true);
+    ss.toast(
+      'Gorilla Data refreshed! Run "Recalculate All" to update the forecast.',
+      'Done', 10
+    );
+  }
 }
 
 /**
