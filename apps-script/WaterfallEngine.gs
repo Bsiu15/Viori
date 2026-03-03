@@ -222,10 +222,21 @@ function runWaterfall(cfg) {
                     fbmOnHand > 0;
 
     // Pre-compute effective velocities for both channels
-    // FBA uses the global conversion rate; FBM uses its own (captures Buy Box loss + lower conversion)
     var fbaEffVel = Math.round(fbaVelocity * (cfg.conversionRate / 100) * 100) / 100;
     var fbmConvRate = (cfg.fbmConversionRate > 0) ? cfg.fbmConversionRate : cfg.conversionRate;
-    var fbmEffVel = Math.round(fbmVelocity * (fbmConvRate / 100) * 100) / 100;
+
+    // FBM demand suppression check: if FBM velocity is more than 75% below FBA,
+    // FBM data is likely suppressed by FBA Buy Box dominance (FBA was in stock
+    // last year, so FBM sales were ~0). Fall back to FBA × FBM conversion rate.
+    var fbmSuppressed = false;
+    var fbmEffVel;
+    if (fbaVelocity > 0 && fbmVelocity < fbaVelocity * 0.25) {
+      fbmSuppressed = true;
+      fbmEffVel = Math.round(fbaVelocity * (fbmConvRate / 100) * 100) / 100;
+    } else {
+      // FBM data is representative — use it directly (no extra conversion rate)
+      fbmEffVel = fbmVelocity;
+    }
 
     // Phase 1: FBA — sell from FBA if available (unless FBM forced)
     if (fbaAvail > 0 && !fbmForced) {
@@ -336,6 +347,7 @@ function runWaterfall(cfg) {
       soldFrom:          channel,
       conversionRate:    cfg.conversionRate,
       fbmConversionRate: fbmConvRate,
+      fbmSuppressed:     fbmSuppressed,
       fbaEffVelocity:    fbaEffVel,
       effectiveVelocity: effectiveVelocity,
       effectivePrice:    effectivePrice,

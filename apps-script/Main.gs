@@ -727,6 +727,30 @@ function recalculateAll() {
   // Build the Summary tab with all results
   buildSummaryTab(allResults);
 
+  // ── FBM suppression toast ──
+  // If any SKU's FBM velocity was <25% of FBA velocity, the engine substituted
+  // FBA sales × conversion rate. Notify the user so they can adjust if needed.
+  var suppressedSkus = [];
+  for (var s = 0; s < allResults.length; s++) {
+    var snaps = allResults[s].snapshots;
+    for (var d = 0; d < snaps.length; d++) {
+      if (snaps[d].fbmSuppressed) {
+        suppressedSkus.push(allResults[s].skuDef.id);
+        break;
+      }
+    }
+  }
+  if (suppressedSkus.length > 0) {
+    SpreadsheetApp.getActiveSpreadsheet().toast(
+      'FBM velocity for ' + suppressedSkus.join(', ') +
+      ' was less than 25% of FBA velocity.\n' +
+      'The forecast is using FBA sales \u00d7 FBM conversion rate instead.\n' +
+      'Adjust the FBM conversion rate in SKU Settings if needed.',
+      'FBM Velocity Adjusted',
+      15
+    );
+  }
+
   // Move Summary tab to position 2 (after Settings)
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var summarySheet = ss.getSheetByName(SUMMARY_TAB_NAME);

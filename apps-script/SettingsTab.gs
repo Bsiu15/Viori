@@ -142,9 +142,10 @@ function buildVelAutoCalcFormula(prefix, skuId, overrideNum) {
 
 /**
  * Builds a Gorilla auto-calc formula for an FBM velocity override VALUE field.
- * Uses last year's FBA sales (not FBM) because when FBA was in stock,
- * FBA wins the Buy Box and FBM sales are ~0. Multiplies by the FBM
- * conversion rate to estimate what FBM would sell during an FBA stockout.
+ * Pulls BOTH FBA and FBM historical sales and compares them:
+ *   - If FBM < 25% of FBA: FBM data is suppressed by FBA Buy Box dominance,
+ *     so use FBA velocity × FBM conversion rate as a better estimate.
+ *   - If FBM >= 25% of FBA: FBM data is representative, use it directly.
  *
  * Returns "" when the override START/END dates or FBM SKU ID are empty.
  *
@@ -159,17 +160,20 @@ function buildFbmVelAutoCalcFormula(prefix, skuId, overrideNum) {
   var skuRef   = prefix + '__FBM_SKU_ID';
   var convRef  = prefix + '__FBM_CONVERSION_RATE';
 
-  // Pull last year's FBA sales (using FBA SKU ID, not FBM), divide by days,
-  // then multiply by FBM conversion rate to estimate FBM velocity.
+  // LET() computes both FBA and FBM velocities from last year's data,
+  // then conditionally picks the right one.
   return '=IF(AND(' + startRef + '<>"", ' + endRef + '<>"", ' + skuRef + '<>""), ' +
-    'IFERROR(' +
-      'GORILLA_SALESCOUNT(GLOBAL__GORILLA_SELLER_ID, "Custom", GLOBAL__GORILLA_MARKETPLACE, "' + skuId + '", ' +
-        '"Shipped", "Exclude", ' +
-        'TEXT(' + startRef + ' - 365, "yyyy-mm-dd"), ' +
-        'TEXT(' + endRef + ' - 365, "yyyy-mm-dd")) ' +
-      '/ (' + endRef + ' - ' + startRef + ' + 1)' +
-      ' * IF(AND(' + convRef + '<>"", ' + convRef + '>0), ' + convRef + ', 100) / 100' +
-    ', ""), "")';
+    'LET(' +
+      'fba_sales, IFERROR(GORILLA_SALESCOUNT(GLOBAL__GORILLA_SELLER_ID, "Custom", GLOBAL__GORILLA_MARKETPLACE, "' + skuId + '", ' +
+        '"Shipped", "Exclude", TEXT(' + startRef + '-365, "yyyy-mm-dd"), TEXT(' + endRef + '-365, "yyyy-mm-dd")), 0), ' +
+      'fbm_sales, IFERROR(GORILLA_SALESCOUNT(GLOBAL__GORILLA_SELLER_ID, "Custom", GLOBAL__GORILLA_MARKETPLACE, ' + skuRef + ', ' +
+        '"Shipped", "Exclude", TEXT(' + startRef + '-365, "yyyy-mm-dd"), TEXT(' + endRef + '-365, "yyyy-mm-dd")), 0), ' +
+      'days, MAX(' + endRef + '-' + startRef + '+1, 1), ' +
+      'fba_vel, fba_sales/days, ' +
+      'fbm_vel, fbm_sales/days, ' +
+      'conv, IF(AND(' + convRef + '<>"", ' + convRef + '>0), ' + convRef + ', 100), ' +
+      'IF(fbm_vel < fba_vel*0.25, fba_vel*conv/100, fbm_vel)' +
+    '), "")';
 }
 
 /**
