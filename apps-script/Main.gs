@@ -727,9 +727,9 @@ function recalculateAll() {
   // Build the Summary tab with all results
   buildSummaryTab(allResults);
 
-  // ── FBM suppression toast ──
+  // ── FBM suppression alert ──
   // If any SKU's FBM velocity was <25% of FBA velocity, the engine substituted
-  // FBA sales × conversion rate. Notify the user so they can adjust if needed.
+  // FBA sales × conversion rate. Show a blocking dialog so the user must acknowledge.
   var suppressedSkus = [];
   for (var s = 0; s < allResults.length; s++) {
     var snaps = allResults[s].snapshots;
@@ -741,13 +741,16 @@ function recalculateAll() {
     }
   }
   if (suppressedSkus.length > 0) {
-    SpreadsheetApp.getActiveSpreadsheet().toast(
-      'FBM velocity for ' + suppressedSkus.join(', ') +
-      ' was less than 25% of FBA velocity.\n' +
-      'The forecast is using FBA sales \u00d7 FBM conversion rate instead.\n' +
-      'Adjust the FBM conversion rate in SKU Settings if needed.',
+    SpreadsheetApp.getUi().alert(
       'FBM Velocity Adjusted',
-      15
+      'FBM velocity for the following SKU(s) was less than 25% of FBA velocity:\n\n' +
+      '    ' + suppressedSkus.join(', ') + '\n\n' +
+      'This usually means FBA had the Buy Box last year, so FBM historical sales\n' +
+      'are near zero and not representative of actual FBM demand.\n\n' +
+      'The forecast is using FBA sales \u00d7 FBM conversion rate instead.\n\n' +
+      'To adjust: open SKU Settings and change the FBM Conversion Rate\n' +
+      '(default 100% = assumes FBM captures all FBA demand).',
+      SpreadsheetApp.getUi().ButtonSet.OK
     );
   }
 
