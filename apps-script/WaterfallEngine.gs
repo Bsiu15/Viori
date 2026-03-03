@@ -248,9 +248,11 @@ function runWaterfall(cfg) {
     // Phase 2: FBM — pick up remaining demand or serve as primary channel
     var fbmDemand = 0;
     if (channels.length > 0 && soldFromFba < fbaEffVel) {
-      // FBA tried but couldn't fill all demand — spillover to FBM
+      // FBA depleted mid-day — FBM serves the remaining fraction at FBM velocity.
+      // dayFraction = what portion of the day remains after FBA stock ran out.
       var fbaRemaining = roundInv(fbaEffVel - soldFromFba);
-      fbmDemand = Math.min(fbaRemaining, fbmEffVel);
+      var dayFraction  = fbaEffVel > 0 ? fbaRemaining / fbaEffVel : 1;
+      fbmDemand = roundInv(fbmEffVel * dayFraction);
     } else if (channels.length === 0) {
       // No FBA attempt (FBA=0 or fbmForced) — FBM is primary channel
       fbmDemand = fbmEffVel;
@@ -271,10 +273,17 @@ function runWaterfall(cfg) {
     }
 
     // Phase 3: DTC — pick up anything left after FBA + FBM
-    // Primary demand = FBA vel (if FBA was attempted or pure OOS), FBM vel (if FBM was primary)
+    // Primary demand depends on how the day played out:
+    //   - Full FBM day: demand = fbmEffVel
+    //   - Split FBA→FBM day: blended demand (FBA portion + FBM portion)
+    //   - Full FBA or pure OOS: demand = fbaEffVel
     var primaryDemand;
     if (channels.length > 0 && channels[0] === 'FBM') {
       primaryDemand = fbmEffVel; // FBM is primary channel (FBA=0 or forced)
+    } else if (soldFromFbm > 0 && channels[0] === 'FBA') {
+      // Split day: FBA served part, FBM serves remainder at its own rate.
+      // Blended demand = what FBA sold + what FBM is expected to sell.
+      primaryDemand = roundInv(soldFromFba + fbmDemand);
     } else {
       primaryDemand = fbaEffVel; // FBA attempted, or pure OOS (use FBA listing demand)
     }

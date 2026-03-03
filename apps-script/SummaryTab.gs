@@ -407,7 +407,9 @@ function buildSummaryTab(allResults) {
           if (snap.soldFromFba === 0) {
             projFbmFbaEquiv += (snap.fbaEffVelocity || 0) * price;
           } else {
-            projFbmFbaEquiv += snap.soldFromFbm * price;
+            // Split day — FBA-equiv = what FBA would have earned in the remaining fraction
+            var fbaRem = (snap.fbaEffVelocity || 0) - snap.soldFromFba;
+            projFbmFbaEquiv += fbaRem * price;
           }
         }
       }
@@ -484,7 +486,7 @@ function buildSummaryTab(allResults) {
     var allFormats = [];
     var allWeights = [];
     var fieldAligns  = ['left', 'center', 'center', 'right', 'right', 'right', 'right'];
-    var fieldFormats = ['', '', '', '$#,##0', '$#,##0', '$#,##0', '$#,##0;-$#,##0;$0'];
+    var fieldFormats = ['', '', '', '$#,##0', '$#,##0', '$#,##0', '$#,##0'];
 
     for (var ar = 0; ar < dataRows; ar++) {
       var rowAligns  = [];

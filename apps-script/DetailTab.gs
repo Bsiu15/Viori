@@ -259,8 +259,9 @@ function buildDetailTab(skuDef, data, cfg) {
                 // FBM was primary channel — full demand was at FBM rate, not FBA rate
                 monthFinancials[mo.name].fbmFbaEquivRevenue += snap.fbaEffVelocity * sellingPrice;
               } else {
-                // Split day — FBM picked up overflow; those units at FBA price
-                monthFinancials[mo.name].fbmFbaEquivRevenue += snap.soldFromFbm * sellingPrice;
+                // Split day — FBA-equiv = what FBA would have earned in the remaining fraction
+                var fbaRemainder = snap.fbaEffVelocity - snap.soldFromFba;
+                monthFinancials[mo.name].fbmFbaEquivRevenue += fbaRemainder * sellingPrice;
               }
 
               if (snap.fbmCostPerUnit > 0) {
@@ -549,10 +550,10 @@ function buildDetailTab(skuDef, data, cfg) {
 
     // Net summary rows — everything framed as cost / loss (no green FBM line)
     var netDefs = [
-      { label: 'Lost Revenue (Stock-Outs)',  value: -grandRev,           bg: grandRev > 0 ? COLORS.OOS : '#F2F2F2',              fmt: '$#,##0;-$#,##0;$0', bold: true },
-      { label: 'FBM Revenue Gap (vs FBA)',   value: -fbmDemandPenalty,   bg: fbmDemandPenalty > 0 ? COLORS.OOS : '#F2F2F2',      fmt: '$#,##0;-$#,##0;$0', bold: true },
-      { label: 'FBM Fulfillment Cost',       value: -totalFbmCost,       bg: totalFbmCost > 0 ? '#FFF2CC' : '#F2F2F2',           fmt: '$#,##0;-$#,##0;$0', bold: true },
-      { label: 'TOTAL NOT-ON-FBA COST',      value: grandNet,            bg: '#D6E4F0',                                           fmt: '$#,##0;-$#,##0;$0', bold: true },
+      { label: 'Lost Revenue (Stock-Outs)',  value: -grandRev,           bg: grandRev > 0 ? COLORS.OOS : '#F2F2F2',              fmt: '$#,##0', bold: true },
+      { label: 'FBM Revenue Gap (vs FBA)',   value: -fbmDemandPenalty,   bg: fbmDemandPenalty > 0 ? COLORS.OOS : '#F2F2F2',      fmt: '$#,##0', bold: true },
+      { label: 'FBM Fulfillment Cost',       value: -totalFbmCost,       bg: totalFbmCost > 0 ? '#FFF2CC' : '#F2F2F2',           fmt: '$#,##0', bold: true },
+      { label: 'TOTAL NOT-ON-FBA COST',      value: grandNet,            bg: '#D6E4F0',                                           fmt: '$#,##0', bold: true },
       { label: 'FBA In-Stock Rate',          value: fbaInStockRate + '%', bg: fbaInStockRate >= 95 ? '#C6EFCE' : (fbaInStockRate >= 80 ? '#FFF2CC' : COLORS.OOS), fmt: '', bold: true }
     ];
     var netMergeStartIdx = finValues.length;
