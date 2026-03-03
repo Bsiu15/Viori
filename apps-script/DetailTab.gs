@@ -314,6 +314,19 @@ function buildDetailTab(skuDef, data, cfg) {
       sheet.setRowHeight(weekStartRow + rh, 95);
     }
 
+    // ── Highlight today's cell with a thick border ──
+    var todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+    if (todayDate.getFullYear() === mo.year && todayDate.getMonth() === mo.month) {
+      var todayDay = todayDate.getDate();
+      var todayOffset = todayDay - 1 + startDow; // 0-indexed position in the grid
+      var todayWeekRow = Math.floor(todayOffset / 7);
+      var todayColIdx  = (todayOffset % 7) + 1;  // 1-indexed column
+      var todayCell = sheet.getRange(weekStartRow + todayWeekRow, todayColIdx);
+      todayCell.setBorder(true, true, true, true, false, false,
+        '#1a1a1a', SpreadsheetApp.BorderStyle.SOLID_THICK);
+    }
+
     row = weekStartRow + numWeeks + 1; // spacer between months
   }
 

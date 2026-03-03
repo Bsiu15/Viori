@@ -616,6 +616,24 @@ function buildSummaryTab(allResults) {
        .setFontWeight('bold')
        .setFontSize(8);
 
+  // ── Highlight today's column in the calendar grid ──
+  var todayDate = new Date();
+  todayDate.setHours(0, 0, 0, 0);
+  for (var td = 0; td < numDays; td++) {
+    if (sameDay(dates[td], todayDate)) {
+      var todayCol = td + 2; // +2: col 1 = SKU label, col 2+ = dates
+      // Highlight header cell with gold background
+      sheet.getRange(calStartRow - 1, todayCol)
+           .setBackground('#FFD700')
+           .setFontColor('#000000');
+      // Thick border on entire today column (header + all SKU rows)
+      sheet.getRange(calStartRow - 1, todayCol, numSkus + 1, 1)
+           .setBorder(true, true, true, true, false, false,
+             '#1a1a1a', SpreadsheetApp.BorderStyle.SOLID_THICK);
+      break;
+    }
+  }
+
   // ── Freeze ──
   // Freeze just the title row so the rest of the sheet scrolls freely
   sheet.setFrozenRows(1);
